@@ -1,0 +1,10 @@
+Makefile
+*.pro.user*
+*~
+*.list
+moc/
+rcc/
+obj/
+RPMS/
+rpm/*.spec
+harbour-feedme

@@ -1,0 +1,24 @@
+Name: harbour-feedme
+Summary: Feed'me
+Version: 0.1
+Release: 1
+Group: Qt/Qt
+License: LGPLv2
+Sources:
+- '%{name}-%{version}.tar.bz2'
+Description: |-
+  Read your daily news, easily and quickly.
+Configure: none
+Builder: qtc5
+PkgConfigBR:
+- Qt5Core
+- Qt5Qml
+- Qt5Quick
+- sailfishapp
+Requires:
+- sailfishsilica-qt5
+Files:
+- '%{_datadir}/icons/hicolor/86x86/apps/%{name}.png'
+- '%{_datadir}/applications/%{name}.desktop'
+- '%{_bindir}/%{name}'
+PkgBR: []
