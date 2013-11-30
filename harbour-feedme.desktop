@@ -1,7 +1,6 @@
 [Desktop Entry]
 Type=Application
 X-Nemo-Application-Type=silica-qt5
-Name=CityBike'me
-Icon=harbour-citybikeme
-Exec=harbour-citybikeme
-Name[fr_FR]=harbour-feedme
+Name=Feed'me
+Icon=harbour-feedme
+Exec=harbour-feedme

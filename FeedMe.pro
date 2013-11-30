@@ -24,7 +24,8 @@ OTHER_FILES += \
     qml/cover/CoverPage.qml \
     qml/pages/StreamPage.qml \
     qml/pages/MainPage.qml \
-    qml/pages/ContentPage.qml
+    qml/pages/ContentPage.qml \
+    qml/components/Bubble.qml
 
 RESOURCES   += \
     data.qrc

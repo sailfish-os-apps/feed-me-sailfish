@@ -1,5 +1,6 @@
 import QtQuick 2.0;
 import Sailfish.Silica 1.0;
+import "../components";
 
 Page {
     id: page;
@@ -36,6 +37,7 @@ Page {
                 id: itemAll;
                 onClicked: {
 
+                    pageStack.push (streamPage);
                 }
 
                 Label {
@@ -69,7 +71,7 @@ Page {
                     text: section;
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
-                    color: Theme.primaryColor;
+                    color: (currentCategory === section ? Theme.highlightColor : Theme.primaryColor);
                     anchors {
                         left: parent.left;
                         right: parent.right;
@@ -81,7 +83,6 @@ Page {
         }
         delegate: BackgroundItem {
             id: itemFeed;
-            clip: true; // FIXME
             height: (visible ? implicitHeight : 0);
             visible: (model ['category'] === currentCategory);
             onClicked: {
@@ -97,6 +98,15 @@ Page {
                 color: Theme.secondaryColor;
                 anchors {
                     left: parent.left;
+                    right: bubble.left;
+                    margins: Theme.paddingLarge;
+                    verticalCenter: parent.verticalCenter;
+                }
+            }
+            Bubble {
+                id: bubble;
+                value: model ['count'];
+                anchors {
                     right: parent.right;
                     margins: Theme.paddingLarge;
                     verticalCenter: parent.verticalCenter;
