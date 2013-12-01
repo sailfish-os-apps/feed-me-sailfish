@@ -41,10 +41,30 @@ Page {
                 }
 
                 Label {
-                    text: qsTr ("See all...");
+                    text: qsTr ("All items...");
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
-                    color: Theme.primaryColor;
+                    color: Theme.secondaryColor;
+                    anchors {
+                        left: parent.left;
+                        right: parent.right;
+                        margins: Theme.paddingLarge;
+                        verticalCenter: parent.verticalCenter;
+                    }
+                }
+            }
+            BackgroundItem {
+                id: itemStarred;
+                onClicked: {
+
+                    pageStack.push (streamPage);
+                }
+
+                Label {
+                    text: qsTr ("Marked items...");
+                    textFormat: Text.PlainText;
+                    truncationMode: TruncationMode.Fade;
+                    color: Theme.secondaryColor;
                     anchors {
                         left: parent.left;
                         right: parent.right;
