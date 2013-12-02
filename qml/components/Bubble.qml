@@ -3,7 +3,7 @@ import Sailfish.Silica 1.0;
 
 Rectangle {
     id: base;
-    width: Theme.itemSizeExtraSmall;
+    width: (Theme.itemSizeMedium / 2);
     height: width;
     radius: (width / 2);
     antialiasing: true;
@@ -27,7 +27,7 @@ Rectangle {
         verticalAlignment: Text.AlignVCenter;
         anchors {
             fill: parent;
-            margins: (parent.width / 4);
+            margins: (parent.width / 6);
         }
     }
 }

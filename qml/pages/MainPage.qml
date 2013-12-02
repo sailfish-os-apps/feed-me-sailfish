@@ -6,12 +6,23 @@ Page {
     id: page;
     allowedOrientations: (Orientation.Portrait | Orientation.Landscape);
 
+    Component.onCompleted: { Database.loadSubscriptions (); }
+
     property string currentCategory : "";
 
+    Connections {
+        target: Database;
+        onSubscriptionsListChanged: {
+            modelSubcriptions.clear ();
+            modelSubcriptions.append (Database.subscriptionsList);
+        }
+    }
     SilicaListView {
         id: view;
         currentIndex: -1;
-        model: modelSubscriptions;
+        model: ListModel {
+            id: modelSubcriptions;
+        }
         header: Column {
             spacing: Theme.paddingSmall;
             anchors {
@@ -21,11 +32,22 @@ Page {
 
             PageHeader {
                 title: qsTr ("Feed'me");
+
+                BusyIndicator {
+                    running: true;
+                    size: BusyIndicatorSize.Medium;
+                    anchors {
+                        left: parent.left;
+                        margins: Theme.paddingLarge;
+                        verticalCenter: parent.verticalCenter;
+                    }
+                }
             }
             Label {
                 text: qsTr ("Read your daily news, easily and quickly.");
                 color: Theme.secondaryHighlightColor;
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere;
+                font.family: Theme.fontFamilyHeading;
                 font.pixelSize: Theme.fontSizeExtraSmall;
                 anchors {
                     left: parent.left;
@@ -44,6 +66,7 @@ Page {
                     text: qsTr ("All items...");
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
+                    font.family: Theme.fontFamilyHeading;
                     color: Theme.secondaryColor;
                     anchors {
                         left: parent.left;
@@ -65,6 +88,7 @@ Page {
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
                     color: Theme.secondaryColor;
+                    font.family: Theme.fontFamilyHeading;
                     anchors {
                         left: parent.left;
                         right: parent.right;
@@ -74,28 +98,51 @@ Page {
                 }
             }
         }
+        footer: Button {
+            text: qsTr ("Back to top");
+            visible: (!view.atYBeginning && view.visibleArea.heightRatio < 1.0 && !pulley.active);
+            anchors {
+                left: parent.left;
+                right: parent.right;
+                margins: 0;
+            }
+            onClicked: { view.scrollToTop (); }
+        }
         section {
-            property: "category";
+            property: "categoryId";
             delegate: BackgroundItem {
                 id: itemCategory;
                 onPressAndHold: {
                     currentCategory = (currentCategory !== section ? section : "");
                 }
                 onClicked: {
-
+                    //currentStream = categoryId;
                     pageStack.push (streamPage);
                 }
                 ListView.onAdd: AddAnimation { target: itemCategory; }
 
+                property string categoryId : section;
+
                 Label {
-                    text: section;
+                    text: Database.categoryInfo [itemCategory.categoryId] ['label'];
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
+                    font.family: Theme.fontFamilyHeading;
                     color: (currentCategory === section ? Theme.highlightColor : Theme.primaryColor);
                     anchors {
                         left: parent.left;
+                        right: bubble.left;
+                        leftMargin: Theme.paddingLarge;
+                        rightMargin: Theme.paddingSmall;
+                        verticalCenter: parent.verticalCenter;
+                    }
+                }
+                Bubble {
+                    id: bubble;
+                    value: Database.categoryInfo [itemCategory.categoryId] ['counter'];
+                    anchors {
                         right: parent.right;
-                        margins: Theme.paddingLarge;
+                        margins: Theme.paddingSmall;
                         verticalCenter: parent.verticalCenter;
                     }
                 }
@@ -104,31 +151,36 @@ Page {
         delegate: BackgroundItem {
             id: itemFeed;
             height: (visible ? implicitHeight : 0);
-            visible: (model ['category'] === currentCategory);
+            visible: (model ['categoryId'] === currentCategory);
             onClicked: {
-
+                //currentStream = feedId;
                 pageStack.push (streamPage);
             }
             ListView.onAdd: AddAnimation { target: itemFeed; }
 
+            property string feedId : model ['feedId'];
+
             Label {
-                text: model ['title'];
+                text: Database.feedInfo [itemFeed.feedId] ['title'];
                 textFormat: Text.PlainText;
                 truncationMode: TruncationMode.Fade;
+                font.pixelSize: Theme.fontSizeSmall;
+                font.family: Theme.fontFamilyHeading;
                 color: Theme.secondaryColor;
                 anchors {
                     left: parent.left;
                     right: bubble.left;
-                    margins: Theme.paddingLarge;
+                    leftMargin: (Theme.paddingLarge * 2);
+                    rightMargin: Theme.paddingSmall;
                     verticalCenter: parent.verticalCenter;
                 }
             }
             Bubble {
                 id: bubble;
-                value: model ['count'];
+                value: Database.feedInfo [itemFeed.feedId] ['counter'];
                 anchors {
                     right: parent.right;
-                    margins: Theme.paddingLarge;
+                    margins: Theme.paddingSmall;
                     verticalCenter: parent.verticalCenter;
                 }
             }
@@ -137,12 +189,15 @@ Page {
             top: parent.top;
             left: parent.left;
             right: parent.right;
-            bottom: panelBottom.top;
+            bottom: parent.bottom;
         }
 
         PullDownMenu {
+            id: pulley;
+
             MenuItem {
                 text: qsTr ("Login / logout");
+                font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
@@ -153,6 +208,7 @@ Page {
             }
             MenuItem {
                 text: qsTr ("Add new feed...");
+                font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
@@ -163,6 +219,7 @@ Page {
             }
             MenuItem {
                 text: qsTr ("Go offline / online");
+                font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
@@ -173,6 +230,7 @@ Page {
             }
             MenuItem {
                 text: qsTr ("Refresh all");
+                font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
@@ -188,23 +246,11 @@ Page {
         sourceItem: view;
         enabled: (!view.atYEnd);
         direction: OpacityRamp.TopToBottom;
-        offset: 0.35;
-        slope: 1.25;
+        offset: 0.65;
+        slope: 1.35;
         width: view.width;
         height: view.height;
         anchors.fill: null;
-    }
-    Button {
-        id: panelBottom;
-        text: qsTr ("Back to top");
-        anchors {
-            left: parent.left;
-            right: parent.right;
-            bottom: parent.bottom;
-            bottomMargin: (view.atYBeginning ? -height : 0);
-            margins: 0;
-        }
-        onClicked: { view.scrollToTop (); }
     }
 }
 

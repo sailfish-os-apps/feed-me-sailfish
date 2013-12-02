@@ -34,7 +34,12 @@ ApplicationWindow {
         ListElement {
             title: "Engadget";
             category: "Actus IT";
-            count: 8;
+            count: 127;
+        }
+        ListElement {
+            title: "BlogGeek";
+            category: "Actus IT";
+            count: 0;
         }
         ListElement {
             title: "Phoronix";

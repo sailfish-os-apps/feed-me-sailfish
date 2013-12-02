@@ -9,9 +9,11 @@ INCLUDEPATH += /usr/include/sailfishapp
 ############### SOURCES & CONTENT #####################
 
 SOURCES     += \
-    src/main.cpp
+    src/main.cpp \
+    src/MyDataBase.cpp
 
 HEADERS     += \
+    src/MyDataBase.h
 
 
 OTHER_FILES += \
