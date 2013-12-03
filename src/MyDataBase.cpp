@@ -4,8 +4,6 @@
 #include <QDebug>
 
 MyDataBase::MyDataBase (QObject * parent) : QObject (parent) {
-    m_categoryInfo = new QQmlPropertyMap (this);
-    m_feedInfo = new QQmlPropertyMap (this);
     m_database = QSqlDatabase::addDatabase ("QSQLITE");
     QString path (QStandardPaths::writableLocation (QStandardPaths::DataLocation));
     QDir dir;
@@ -22,6 +20,7 @@ MyDataBase::MyDataBase (QObject * parent) : QObject (parent) {
         qWarning () << "Offline storage database couldn't be loaded nor created !"
                     << m_database.lastError ().text ();
     }
+    connect (this, &MyDataBase::currentStreamIdChanged, this, &MyDataBase::onCurrentStreamIdChanged);
 }
 
 MyDataBase::~MyDataBase () {
@@ -29,6 +28,28 @@ MyDataBase::~MyDataBase () {
         m_database.close ();
         qDebug ("Offline storage database closed.");
     }
+}
+
+MyFeed * MyDataBase::getFeedInfo (QString feedId) {
+    MyFeed * ret = m_feeds.value (feedId, NULL);
+    if (!ret) {
+        ret = new MyFeed (this);
+        ret->set_streamId (feedId);
+        ret->set_counter  (0);
+        m_feeds.insert (feedId, ret);
+    }
+    return ret;
+}
+
+MyCategory * MyDataBase::getCategoryInfo (QString categoryId) {
+    MyCategory * ret = m_categories.value (categoryId, NULL);
+    if (!ret) {
+        ret = new MyCategory (this);
+        ret->set_streamId (categoryId);
+        ret->set_counter  (0);
+        m_categories.insert (categoryId, ret);
+    }
+    return ret;
 }
 
 void MyDataBase::initializeTables () {
@@ -59,9 +80,16 @@ void MyDataBase::initializeTables () {
     m_database.commit ();
 }
 
+void MyDataBase::onCurrentStreamIdChanged (QString arg) {
+    qDebug () << "onCurrentStreamIdChanged :" << arg;
+
+
+}
+
 void MyDataBase::loadSubscriptions () {
     QSqlQuery query (m_database);
-    QString sql ("SELECT * FROM categories,feeds WHERE feeds.categoryId=categories.categoryId ORDER BY label,title ASC;");
+    QString sql ("SELECT * FROM categories,feeds "
+                 "WHERE feeds.categoryId=categories.categoryId ORDER BY label,title ASC;");
     QVariantList ret;
     if (query.exec (sql)) {
         QSqlRecord record = query.record ();
@@ -70,7 +98,7 @@ void MyDataBase::loadSubscriptions () {
         int fieldFeedId        = record.indexOf ("feedId");
         int fieldFeedTitle     = record.indexOf ("title");
         int fieldFeedWebsite   = record.indexOf ("website");
-        int fieldFeedUpdated   = record.indexOf ("updated");
+        //int fieldFeedUpdated   = record.indexOf ("updated");
         while (query.next ()) {
             QVariantMap entry;
             QString feedId     = query.value (fieldFeedId).toString ();
@@ -81,22 +109,10 @@ void MyDataBase::loadSubscriptions () {
             ret << entry;
             qDebug () << ">>>" << entry;
             ///// CATEGORY INFO /////
-            MyCategory * category = m_categoryInfo->value (categoryId).value<MyCategory *> ();
-            if (!category) {
-                category = new MyCategory (this);
-                category->set_streamId (categoryId);
-                category->set_counter  (0);
-                m_categoryInfo->insert (categoryId, QVariant::fromValue (category));
-            }
+            MyCategory * category = getCategoryInfo (categoryId);
             category->set_label (query.value (fieldCategoryLabel).toString ());
             ///// FEED INFO /////
-            MyFeed * feed = m_feedInfo->value (feedId).value<MyFeed *> ();
-            if (!feed) {
-                feed = new MyFeed (this);
-                feed->set_streamId (feedId);
-                feed->set_counter  (0);
-                m_feedInfo->insert (feedId, QVariant::fromValue (feed));
-            }
+            MyFeed * feed = getFeedInfo (feedId);
             feed->set_title   (query.value (fieldFeedTitle).toString ());
             feed->set_website (query.value (fieldFeedWebsite).toString ());
         }
@@ -106,4 +122,60 @@ void MyDataBase::loadSubscriptions () {
                     << query.lastError ().text ();
     }
     set_subscriptionsList (ret);
+}
+
+void MyDataBase::loadUnreadCounts () {
+    QStringList streamIds;
+    ///// FEEDS UNREAD COUNTS /////
+    QSqlQuery queryFeeds (m_database);
+    QString sqlFeeds ("SELECT COUNT (entryId) AS unreadcount,streamId FROM news "
+                      "WHERE unread=1 GROUP BY streamId;");
+    if (queryFeeds.exec (sqlFeeds)) {
+        QSqlRecord record = queryFeeds.record ();
+        int fieldUnreadCount = record.indexOf ("unreadcount");
+        int fieldFeedId      = record.indexOf ("streamId");
+        while (queryFeeds.next ()) {
+            QString feedId  = queryFeeds.value (fieldFeedId).toString ();
+            int unreadCount = queryFeeds.value (fieldUnreadCount).toInt ();
+            MyFeed * feed = getFeedInfo (feedId);
+            feed->set_counter (unreadCount);
+            streamIds << feedId;
+        }
+    }
+    else {
+        qWarning () << "Failed to load feeds unread counts :"
+                    << queryFeeds.lastError ().text ();
+    }
+    foreach (QString streamId, m_feeds.keys ()) {
+        if (!streamIds.contains (streamId)) {
+            getFeedInfo (streamId)->set_counter (0);
+        }
+    }
+    streamIds.clear ();
+    ///// CATEGORIES UNREAD COUNTS /////
+    QSqlQuery queryCategories (m_database);
+    QString sqlCategories ("SELECT COUNT (entryId) AS unreadcount,categoryId FROM news,feeds "
+                           "WHERE news.streamId=feeds.feedId AND unread=1 GROUP BY categoryId;");
+    if (queryCategories.exec (sqlCategories)) {
+        QSqlRecord record = queryCategories.record ();
+        int fieldUnreadCount = record.indexOf ("unreadcount");
+        int fieldCategoryId  = record.indexOf ("categoryId");
+        while (queryCategories.next ()) {
+            QString categoryId  = queryCategories.value (fieldCategoryId).toString ();
+            int unreadCount = queryCategories.value (fieldUnreadCount).toInt ();
+            MyCategory * category = getCategoryInfo (categoryId);
+            category->set_counter (unreadCount);
+            streamIds << categoryId;
+        }
+    }
+    else {
+        qWarning () << "Failed to load categories unread counts :"
+                    << queryCategories.lastError ().text ();
+    }
+    foreach (QString streamId, m_categories.keys ()) {
+        if (!streamIds.contains (streamId)) {
+            getCategoryInfo (streamId)->set_counter (0);
+        }
+    }
+    streamIds.clear ();
 }

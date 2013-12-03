@@ -6,7 +6,10 @@ Page {
     id: page;
     allowedOrientations: (Orientation.Portrait | Orientation.Landscape);
 
-    Component.onCompleted: { Database.loadSubscriptions (); }
+    Component.onCompleted: {
+        Database.loadSubscriptions ();
+        Database.loadUnreadCounts  ();
+    }
 
     property string currentCategory : "";
 
@@ -34,7 +37,8 @@ Page {
                 title: qsTr ("Feed'me");
 
                 BusyIndicator {
-                    running: true;
+                    running: false;
+                    visible: running;
                     size: BusyIndicatorSize.Medium;
                     anchors {
                         left: parent.left;
@@ -98,15 +102,13 @@ Page {
                 }
             }
         }
-        footer: Button {
-            text: qsTr ("Back to top");
-            visible: (!view.atYBeginning && view.visibleArea.heightRatio < 1.0 && !pulley.active);
+        footer: Item {
+            height: btnBackToTop.height;
             anchors {
                 left: parent.left;
                 right: parent.right;
                 margins: 0;
             }
-            onClicked: { view.scrollToTop (); }
         }
         section {
             property: "categoryId";
@@ -116,7 +118,7 @@ Page {
                     currentCategory = (currentCategory !== section ? section : "");
                 }
                 onClicked: {
-                    //currentStream = categoryId;
+                    Database.currentStreamId = categoryId;
                     pageStack.push (streamPage);
                 }
                 ListView.onAdd: AddAnimation { target: itemCategory; }
@@ -124,7 +126,7 @@ Page {
                 property string categoryId : section;
 
                 Label {
-                    text: Database.categoryInfo [itemCategory.categoryId] ['label'];
+                    text: Database.getCategoryInfo (itemCategory.categoryId) ['label'];
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
                     font.family: Theme.fontFamilyHeading;
@@ -139,7 +141,7 @@ Page {
                 }
                 Bubble {
                     id: bubble;
-                    value: Database.categoryInfo [itemCategory.categoryId] ['counter'];
+                    value: Database.getCategoryInfo (itemCategory.categoryId) ['counter'];
                     anchors {
                         right: parent.right;
                         margins: Theme.paddingSmall;
@@ -153,7 +155,7 @@ Page {
             height: (visible ? implicitHeight : 0);
             visible: (model ['categoryId'] === currentCategory);
             onClicked: {
-                //currentStream = feedId;
+                Database.currentStreamId = feedId;
                 pageStack.push (streamPage);
             }
             ListView.onAdd: AddAnimation { target: itemFeed; }
@@ -161,7 +163,7 @@ Page {
             property string feedId : model ['feedId'];
 
             Label {
-                text: Database.feedInfo [itemFeed.feedId] ['title'];
+                text: Database.getFeedInfo (itemFeed.feedId) ['title'];
                 textFormat: Text.PlainText;
                 truncationMode: TruncationMode.Fade;
                 font.pixelSize: Theme.fontSizeSmall;
@@ -177,7 +179,7 @@ Page {
             }
             Bubble {
                 id: bubble;
-                value: Database.feedInfo [itemFeed.feedId] ['counter'];
+                value: Database.getFeedInfo (itemFeed.feedId) ['counter'];
                 anchors {
                     right: parent.right;
                     margins: Theme.paddingSmall;
@@ -251,6 +253,18 @@ Page {
         width: view.width;
         height: view.height;
         anchors.fill: null;
+    }
+    Button {
+        id: btnBackToTop;
+        text: qsTr ("Back to top");
+        visible: (!view.atYBeginning && view.visibleArea.heightRatio < 1.0 && !pulley.active);
+        anchors {
+            left: parent.left;
+            right: parent.right;
+            bottom: parent.bottom;
+            margins: 0;
+        }
+        onClicked: { view.scrollToTop (); }
     }
 }
 

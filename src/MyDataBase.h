@@ -8,7 +8,9 @@
 #include <QSqlError>
 #include <QSqlRecord>
 #include <QDir>
+#include <QHash>
 #include <QQmlPropertyMap>
+#include <QStringList>
 
 #define QML_PUBLIC_PROPERTY(type, name) \
     protected: \
@@ -64,27 +66,35 @@ public: explicit MyFeed (QObject * parent = NULL) : QObject (parent) { }
 
 class MyDataBase : public QObject {
     Q_OBJECT
-    QML_PUBLIC_PROPERTY (QVariantList, subscriptionsList)
-    QML_READONLY_PROPERTY (QQmlPropertyMap *, categoryInfo)
-    QML_READONLY_PROPERTY (QQmlPropertyMap *, feedInfo)
+    QML_PUBLIC_PROPERTY   (QVariantList,      subscriptionsList)
+    QML_PUBLIC_PROPERTY   (QString,           currentStreamId)
+    QML_PUBLIC_PROPERTY   (bool,              showOnlyUnread)
+
 
 public:
     explicit MyDataBase (QObject * parent = NULL);
     virtual ~MyDataBase ();
 
+    Q_INVOKABLE MyFeed     * getFeedInfo     (QString feedId);
+    Q_INVOKABLE MyCategory * getCategoryInfo (QString categoryId);
 
 signals:
 
 
 public slots:
     void loadSubscriptions ();
-
+    void loadUnreadCounts  ();
 
 protected:
     void initializeTables  ();
 
+private slots:
+    void onCurrentStreamIdChanged (QString arg);
+
 private:
-    QSqlDatabase m_database;
+    QSqlDatabase                 m_database;
+    QHash<QString, MyFeed     *> m_feeds;
+    QHash<QString, MyCategory *> m_categories;
 
 };
 
