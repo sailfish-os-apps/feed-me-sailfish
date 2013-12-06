@@ -21,6 +21,7 @@ MyDataBase::MyDataBase (QObject * parent) : QObject (parent) {
                     << m_database.lastError ().text ();
     }
     connect (this, &MyDataBase::currentStreamIdChanged, this, &MyDataBase::onCurrentStreamIdChanged);
+    connect (this, &MyDataBase::showOnlyUnreadChanged,  this, &MyDataBase::onShowOnlyUnreadChanged);
 }
 
 MyDataBase::~MyDataBase () {
@@ -48,6 +49,16 @@ MyCategory * MyDataBase::getCategoryInfo (QString categoryId) {
         ret->set_streamId (categoryId);
         ret->set_counter  (0);
         m_categories.insert (categoryId, ret);
+    }
+    return ret;
+}
+
+MyContent * MyDataBase::getContentInfo (QString entryId) {
+    MyContent * ret = m_contents.value (entryId, NULL);
+    if (!ret) {
+        ret = new MyContent (this);
+        ret->set_entryId (entryId);
+        m_contents.insert (entryId, ret);
     }
     return ret;
 }
@@ -80,10 +91,83 @@ void MyDataBase::initializeTables () {
     m_database.commit ();
 }
 
+void MyDataBase::refreshStreamModel () {
+    QVariantList ret;
+    QString clauseSelect;
+    QString clauseFrom;
+    QStringList clauseWhere;
+    if (m_currentStreamId.endsWith ("/global.all")) {
+        clauseSelect = " SELECT * ";
+        clauseFrom   = " FROM news ";
+    }
+    else {
+        clauseSelect = " SELECT news.*,feeds.categoryId AS categoryId,feeds.feedId AS feedId ";
+        clauseFrom   = " FROM news,feeds ";
+        clauseWhere.append (" (news.streamId=feeds.feedId) ");
+        clauseWhere.append (" (feeds.feedId=:feedId OR feeds.categoryId=:categoryId) ");
+    }
+    if (m_showOnlyUnread) {
+        clauseWhere.append (" unread=1 ");
+    }
+    QString clauseOrder (" ORDER BY published DESC ");
+    QString clauseLimit (" LIMIT 1000 ");
+    QString sql (clauseSelect + clauseFrom + (!clauseWhere.isEmpty () ? " WHERE " + clauseWhere.join (" AND ") : "") + clauseOrder + clauseLimit + ";");
+    qDebug () << "sql=" << sql;
+    QSqlQuery query (m_database);
+    query.prepare   (sql.trimmed ());
+    query.bindValue (":feedId",     m_currentStreamId);
+    query.bindValue (":categoryId", m_currentStreamId);
+    if (query.exec ()) {
+        QSqlRecord record  = query.record ();
+        int fieldEntryId = record.indexOf ("entryId");
+        int fieldStreamId = record.indexOf ("streamId");
+        int fieldUnread = record.indexOf ("unread");
+        int fieldTitle  = record.indexOf ("title");
+        int fieldAuthor =  record.indexOf ("author");
+        int fieldContent = record.indexOf ("content");
+        int fieldLink = record.indexOf ("link");
+        int fieldPublished = record.indexOf ("published");
+        int fieldCrawled = record.indexOf ("crawled");
+        int fieldUpdated = record.indexOf ("updated");
+        int fieldCategoryId = record.indexOf ("categoryId");
+        int fieldFeedId = record.indexOf ("feedId");
+        while (query.next ()) {
+            QString entryId = query.value (fieldEntryId).toString ();
+            QDate date = QDateTime::fromMSecsSinceEpoch (query.value (fieldPublished).value<quint64> ()).date ();
+            ///// MODEL ENTRY /////
+            QVariantMap entry;
+            entry.insert ("entryId", entryId);
+            entry.insert ("date", date.toString ("yyyy-MM-dd"));
+            ret << entry;
+            ///// CONTENT INFO /////
+            MyContent * content = getContentInfo (entryId);
+            content->set_content   (query.value (fieldContent).toString ());
+            content->set_title     (query.value (fieldTitle).toString ());
+            content->set_author    (query.value (fieldAuthor).toString ());
+            content->set_link      (query.value (fieldLink).toString ());
+            content->set_streamId  (query.value (fieldStreamId).toString ());
+            content->set_unread    (query.value (fieldUnread).toInt () == 1);
+            content->set_marked    (false); // FIXME
+            content->set_updated   (query.value (fieldUpdated).toDateTime ());
+            content->set_crawled   (query.value (fieldCrawled).toDateTime ());
+            content->set_published (query.value (fieldPublished).toDateTime ());
+        }
+    }
+    else {
+        qWarning () << "Failed to load stream :"
+                    << query.lastError ().text ();
+    }
+    set_newsStreamList (ret);
+}
+
 void MyDataBase::onCurrentStreamIdChanged (QString arg) {
     qDebug () << "onCurrentStreamIdChanged :" << arg;
+    refreshStreamModel ();
+}
 
-
+void MyDataBase::onShowOnlyUnreadChanged (bool arg) {
+    qDebug () << "onShowOnlyUnreadChanged :" << arg;
+    refreshStreamModel ();
 }
 
 void MyDataBase::loadSubscriptions () {
@@ -100,10 +184,10 @@ void MyDataBase::loadSubscriptions () {
         int fieldFeedWebsite   = record.indexOf ("website");
         //int fieldFeedUpdated   = record.indexOf ("updated");
         while (query.next ()) {
-            QVariantMap entry;
             QString feedId     = query.value (fieldFeedId).toString ();
             QString categoryId = query.value (fieldCategoryId).toString ();
             ///// MODEL ENTRY /////
+            QVariantMap entry;
             entry.insert ("categoryId", categoryId);
             entry.insert ("feedId",     feedId);
             ret << entry;
@@ -113,6 +197,7 @@ void MyDataBase::loadSubscriptions () {
             category->set_label (query.value (fieldCategoryLabel).toString ());
             ///// FEED INFO /////
             MyFeed * feed = getFeedInfo (feedId);
+            feed->set_categoryId (categoryId);
             feed->set_title   (query.value (fieldFeedTitle).toString ());
             feed->set_website (query.value (fieldFeedWebsite).toString ());
         }

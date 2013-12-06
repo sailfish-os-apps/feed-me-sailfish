@@ -1,5 +1,6 @@
 import QtQuick 2.0;
 import Sailfish.Silica 1.0;
+import harbour.feedme.myQtCoreImports 5.1;
 import "../components";
 
 Page {
@@ -7,17 +8,18 @@ Page {
     allowedOrientations: (Orientation.Portrait | Orientation.Landscape);
 
     Component.onCompleted: {
-        Database.loadSubscriptions ();
-        Database.loadUnreadCounts  ();
+        Feedly.loadSubscriptions ();
+        Feedly.loadUnreadCounts  ();
     }
 
     property string currentCategory : "";
 
     Connections {
-        target: Database;
+        target: Feedly;
         onSubscriptionsListChanged: {
+            view.positionViewAtBeginning ();
             modelSubcriptions.clear ();
-            modelSubcriptions.append (Database.subscriptionsList);
+            modelSubcriptions.append (Feedly.subscriptionsList);
         }
     }
     SilicaListView {
@@ -118,15 +120,15 @@ Page {
                     currentCategory = (currentCategory !== section ? section : "");
                 }
                 onClicked: {
-                    Database.currentStreamId = categoryId;
+                    Feedly.currentStreamId = categoryInfo.streamId;
                     pageStack.push (streamPage);
                 }
                 ListView.onAdd: AddAnimation { target: itemCategory; }
 
-                property string categoryId : section;
+                property CategoryInfo categoryInfo : Feedly.getCategoryInfo (section);
 
                 Label {
-                    text: Database.getCategoryInfo (itemCategory.categoryId) ['label'];
+                    text: itemCategory.categoryInfo.label;
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
                     font.family: Theme.fontFamilyHeading;
@@ -141,7 +143,7 @@ Page {
                 }
                 Bubble {
                     id: bubble;
-                    value: Database.getCategoryInfo (itemCategory.categoryId) ['counter'];
+                    value: itemCategory.categoryInfo.counter;
                     anchors {
                         right: parent.right;
                         margins: Theme.paddingSmall;
@@ -153,17 +155,17 @@ Page {
         delegate: BackgroundItem {
             id: itemFeed;
             height: (visible ? implicitHeight : 0);
-            visible: (model ['categoryId'] === currentCategory);
+            visible: (feedInfo.categoryId === currentCategory);
             onClicked: {
-                Database.currentStreamId = feedId;
+                Feedly.currentStreamId = feedInfo.streamId;
                 pageStack.push (streamPage);
             }
             ListView.onAdd: AddAnimation { target: itemFeed; }
 
-            property string feedId : model ['feedId'];
+            property FeedInfo feedInfo : Feedly.getFeedInfo (model ['feedId']);
 
             Label {
-                text: Database.getFeedInfo (itemFeed.feedId) ['title'];
+                text: itemFeed.feedInfo.title;
                 textFormat: Text.PlainText;
                 truncationMode: TruncationMode.Fade;
                 font.pixelSize: Theme.fontSizeSmall;
@@ -179,7 +181,7 @@ Page {
             }
             Bubble {
                 id: bubble;
-                value: Database.getFeedInfo (itemFeed.feedId) ['counter'];
+                value: itemFeed.feedInfo.counter;
                 anchors {
                     right: parent.right;
                     margins: Theme.paddingSmall;

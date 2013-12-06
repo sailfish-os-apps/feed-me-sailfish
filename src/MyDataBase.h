@@ -11,6 +11,14 @@
 #include <QHash>
 #include <QQmlPropertyMap>
 #include <QStringList>
+#include <QDateTime>
+#include <QAbstractListModel>
+#include <QVariant>
+#include <QMetaEnum>
+#include <QMetaObject>
+#include <QMetaProperty>
+#include <QMetaMethod>
+#include <QRegularExpression>
 
 #define QML_PUBLIC_PROPERTY(type, name) \
     protected: \
@@ -57,6 +65,7 @@ public: explicit MyCategory (QObject * parent = NULL) : QObject (parent) { }
 class MyFeed : public QObject {
     Q_OBJECT
     QML_PUBLIC_PROPERTY (QString, streamId)
+    QML_PUBLIC_PROPERTY (QString, categoryId)
     QML_PUBLIC_PROPERTY (QString, title)
     QML_PUBLIC_PROPERTY (QString, website)
     QML_PUBLIC_PROPERTY (int,     counter)
@@ -64,12 +73,30 @@ class MyFeed : public QObject {
 public: explicit MyFeed (QObject * parent = NULL) : QObject (parent) { }
 };
 
+class MyContent : public QObject {
+    Q_OBJECT
+    QML_PUBLIC_PROPERTY (QString,   entryId)
+    QML_PUBLIC_PROPERTY (QString,   streamId)
+    QML_PUBLIC_PROPERTY (QString,   title)
+    QML_PUBLIC_PROPERTY (QString,   author)
+    QML_PUBLIC_PROPERTY (QString,   content)
+    QML_PUBLIC_PROPERTY (QString,   link)
+    QML_PUBLIC_PROPERTY (bool,      unread)
+    QML_PUBLIC_PROPERTY (bool,      marked)
+    QML_PUBLIC_PROPERTY (QDateTime, published)
+    QML_PUBLIC_PROPERTY (QDateTime, updated)
+    QML_PUBLIC_PROPERTY (QDateTime, crawled)
+
+public: explicit MyContent (QObject * parent = NULL) : QObject (parent) { }
+};
+
 class MyDataBase : public QObject {
     Q_OBJECT
-    QML_PUBLIC_PROPERTY   (QVariantList,      subscriptionsList)
     QML_PUBLIC_PROPERTY   (QString,           currentStreamId)
+    QML_PUBLIC_PROPERTY   (QString,           currentEntryId)
+    QML_PUBLIC_PROPERTY   (QVariantList,      subscriptionsList)
+    QML_PUBLIC_PROPERTY   (QVariantList,      newsStreamList)
     QML_PUBLIC_PROPERTY   (bool,              showOnlyUnread)
-
 
 public:
     explicit MyDataBase (QObject * parent = NULL);
@@ -77,6 +104,7 @@ public:
 
     Q_INVOKABLE MyFeed     * getFeedInfo     (QString feedId);
     Q_INVOKABLE MyCategory * getCategoryInfo (QString categoryId);
+    Q_INVOKABLE MyContent  * getContentInfo  (QString entryId);
 
 signals:
 
@@ -86,16 +114,18 @@ public slots:
     void loadUnreadCounts  ();
 
 protected:
-    void initializeTables  ();
+    void initializeTables   ();
+    void refreshStreamModel ();
 
 private slots:
     void onCurrentStreamIdChanged (QString arg);
+    void onShowOnlyUnreadChanged  (bool    arg);
 
 private:
     QSqlDatabase                 m_database;
     QHash<QString, MyFeed     *> m_feeds;
     QHash<QString, MyCategory *> m_categories;
-
+    QHash<QString, MyContent  *> m_contents;
 };
 
 #endif // MYDATABASE_H

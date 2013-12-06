@@ -1,15 +1,26 @@
 import QtQuick 2.0;
 import Sailfish.Silica 1.0;
-//import "../components";
+import harbour.feedme.myQtCoreImports 5.1;
+import "../components";
 
 Page {
     id: page;
     allowedOrientations: (Orientation.Portrait | Orientation.Landscape);
 
+    Connections {
+        target: Feedly;
+        onNewsStreamListChanged: {
+            view.positionViewAtBeginning ();
+            modelNewsStream.clear ();
+            modelNewsStream.append (Feedly.newsStreamList);
+        }
+    }
     SilicaListView {
         id: view;
         currentIndex: -1;
-        model: 0;
+        model: ListModel {
+            id: modelNewsStream;
+        }
         header: Column {
             spacing: Theme.paddingSmall;
             anchors {
@@ -22,10 +33,10 @@ Page {
                 width: parent.width;
             }
             Text {
-                text: Database.currentStreamId !== ''
-                      ? (Database.currentStreamId.indexOf ("/category/") > -1
-                         ? Database.getCategoryInfo (Database.currentStreamId) ['label']
-                         : Database.getFeedInfo     (Database.currentStreamId) ['title'])
+                text: Feedly.currentStreamId !== ''
+                      ? (Feedly.currentStreamId.indexOf ("/category/") > -1
+                         ? Feedly.getCategoryInfo (Feedly.currentStreamId) ['label']
+                         : Feedly.getFeedInfo     (Feedly.currentStreamId) ['title'])
                       : "";
                 color: Theme.highlightColor;
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere;
@@ -42,8 +53,61 @@ Page {
                 }
             }
         }
+        section {
+            property: "date";
+            delegate: Label {
+                text: Qt.formatDate (new Date (section), Qt.SystemLocaleLongDate);
+                font.pixelSize: Theme.fontSizeExtraSmall;
+                font.family: Theme.fontFamilyHeading;
+                color: Theme.secondaryHighlightColor;
+                height: Theme.itemSizeMedium;
+                horizontalAlignment: Text.AlignRight;
+                verticalAlignment: Text.AlignBottom;
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                    margins: Theme.paddingLarge;
+                }
+            }
+        }
         delegate: BackgroundItem {
+            id: itemNews;
+            height: Theme.itemSizeMedium;
+            anchors {
+                left: parent.left;
+                right: parent.right;
+            }
+            onClicked: {
+                Feedly.currentEntryId = contentInfo.entryId;
+                pageStack.push (contentPage);
+            }
 
+            property ContentInfo contentInfo : Feedly.getContentInfo (model ['entryId']);
+
+            GlassItem {
+                color: Theme.highlightColor;
+                visible: itemNews.contentInfo.unread;
+                anchors {
+                    horizontalCenter: parent.right;
+                    verticalCenter: parent.verticalCenter;
+                }
+            }
+            Text {
+                text: itemNews.contentInfo.title;
+                textFormat: Text.PlainText;
+                wrapMode: Text.WrapAtWordBoundaryOrAnywhere;
+                maximumLineCount: 2;
+                font.pixelSize: Theme.fontSizeSmall;
+                font.family: Theme.fontFamilyHeading;
+                elide: Text.ElideRight;
+                color: (model.index % 2 ? Theme.primaryColor : Theme.secondaryColor);
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                    margins: Theme.paddingLarge;
+                    verticalCenter: parent.verticalCenter;
+                }
+            }
         }
         footer: Item {
             height: btnBackToTop.height;
@@ -58,16 +122,15 @@ Page {
         PullDownMenu {
             id: pulley;
 
-
             MenuItem {
-                text: qsTr ("Show only unread : <b>%1</b>").arg (Database.showOnlyUnread ? qsTr ("ON") : qsTr ("OFF"));
+                text: qsTr ("Show only unread : <b>%1</b>").arg (Feedly.showOnlyUnread ? qsTr ("ON") : qsTr ("OFF"));
                 textFormat: Text.StyledText;
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
-                onClicked: { Database.showOnlyUnread = !Database.showOnlyUnread; }
+                onClicked: { Feedly.showOnlyUnread = !Feedly.showOnlyUnread; }
             }
             MenuItem {
                 text: qsTr ("Check for newer items...");
@@ -81,6 +144,7 @@ Page {
                 }
             }
         }
+        VerticalScrollDecorator { }
     }
     Button {
         id: btnBackToTop;

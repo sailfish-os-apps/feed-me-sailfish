@@ -16,8 +16,13 @@ ApplicationWindow {
     StreamPage {
         id: streamPage;
     }
+    ContentPage {
+        id: contentPage;
+    }
 
-
+    Formatter {
+        id: formatter;
+    }
     ListModel {
         id: modelSubscriptions;
 
