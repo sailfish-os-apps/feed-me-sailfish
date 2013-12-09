@@ -7,6 +7,9 @@ Page {
     id: page;
     allowedOrientations: (Orientation.Portrait | Orientation.Landscape);
 
+    RemorsePopup {
+        id: remorseMarkAllRead;
+    }
     Connections {
         target: Feedly;
         onNewsStreamListChanged: {
@@ -34,7 +37,7 @@ Page {
             }
             Text {
                 text: Feedly.currentStreamId !== ''
-                      ? (Feedly.currentStreamId.indexOf ("/category/") > -1
+                      ? (Feedly.currentStreamId.indexOf ("user/") === 0
                          ? Feedly.getCategoryInfo (Feedly.currentStreamId) ['label']
                          : Feedly.getFeedInfo     (Feedly.currentStreamId) ['title'])
                       : "";
@@ -141,6 +144,21 @@ Page {
                 }
                 onClicked: {
 
+                }
+            }
+            MenuItem {
+                text: qsTr ("Mark all as read");
+                font.family: Theme.fontFamilyHeading;
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                }
+                onClicked: {
+                    remorseMarkAllRead.execute (qsTr ("Marking all news read"),
+                                                function () {
+                                                    // TODO : set unread : false, and save sync actions
+                                                },
+                                                5000);
                 }
             }
         }

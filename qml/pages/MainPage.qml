@@ -7,13 +7,10 @@ Page {
     id: page;
     allowedOrientations: (Orientation.Portrait | Orientation.Landscape);
 
-    Component.onCompleted: {
-        Feedly.loadSubscriptions ();
-        Feedly.loadUnreadCounts  ();
-    }
-
     property string currentCategory : "";
 
+    RemorsePopup { id: remorseLogout; }
+    RemorseItem { id: remorseUnsubscribe; }
     Connections {
         target: Feedly;
         onSubscriptionsListChanged: {
@@ -27,6 +24,8 @@ Page {
         currentIndex: -1;
         model: ListModel {
             id: modelSubcriptions;
+
+            Component.onCompleted: { append (Feedly.subscriptionsList); }
         }
         header: Column {
             spacing: Theme.paddingSmall;
@@ -39,7 +38,7 @@ Page {
                 title: qsTr ("Feed'me");
 
                 BusyIndicator {
-                    running: false;
+                    running: Feedly.isPolling;
                     visible: running;
                     size: BusyIndicatorSize.Medium;
                     anchors {
@@ -64,20 +63,31 @@ Page {
             BackgroundItem {
                 id: itemAll;
                 onClicked: {
-
+                    Feedly.currentStreamId = categoryAll.streamId;
                     pageStack.push (streamPage);
                 }
 
+                property CategoryInfo categoryAll : Feedly.getCategoryInfo (Feedly.getStreamIdAll ());
+
                 Label {
-                    text: qsTr ("All items...");
+                    text: itemAll.categoryAll.label;
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
                     font.family: Theme.fontFamilyHeading;
                     color: Theme.secondaryColor;
                     anchors {
                         left: parent.left;
-                        right: parent.right;
+                        right: bubbleAll.left;
                         margins: Theme.paddingLarge;
+                        verticalCenter: parent.verticalCenter;
+                    }
+                }
+                Bubble {
+                    id: bubbleAll;
+                    value: itemAll.categoryAll.counter;
+                    anchors {
+                        right: parent.right;
+                        margins: Theme.paddingSmall;
                         verticalCenter: parent.verticalCenter;
                     }
                 }
@@ -85,20 +95,31 @@ Page {
             BackgroundItem {
                 id: itemStarred;
                 onClicked: {
-
+                    Feedly.currentStreamId = categoryStarred.streamId;
                     pageStack.push (streamPage);
                 }
 
+                property CategoryInfo categoryStarred : Feedly.getCategoryInfo (Feedly.getStreamIdMarked ());
+
                 Label {
-                    text: qsTr ("Marked items...");
+                    text: itemStarred.categoryStarred.label;
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
                     color: Theme.secondaryColor;
                     font.family: Theme.fontFamilyHeading;
                     anchors {
                         left: parent.left;
-                        right: parent.right;
+                        right: bubbleStarred.left;
                         margins: Theme.paddingLarge;
+                        verticalCenter: parent.verticalCenter;
+                    }
+                }
+                Bubble {
+                    id: bubbleStarred;
+                    value: itemStarred.categoryStarred.counter;
+                    anchors {
+                        right: parent.right;
+                        margins: Theme.paddingSmall;
                         verticalCenter: parent.verticalCenter;
                     }
                 }
@@ -152,10 +173,25 @@ Page {
                 }
             }
         }
-        delegate: BackgroundItem {
+        delegate: ListItem {
             id: itemFeed;
-            height: (visible ? implicitHeight : 0);
+            height: (visible ? (menuOpen ? _menuItem.height + contentItem.height : contentItem.height) : 0);
             visible: (feedInfo.categoryId === currentCategory);
+            menu: Component {
+                ContextMenu {
+                    MenuItem {
+                        text: qsTr ("Unsubscribe this feed");
+                        onClicked: {
+                            remorseUnsubscribe.execute (itemFeed,
+                                                        qsTr ("Removing feed"),
+                                                        function () {
+                                                            // TODO : remove feed and unsubscribe
+                                                        },
+                                                        5000);
+                        }
+                    }
+                }
+            }
             onClicked: {
                 Feedly.currentStreamId = feedInfo.streamId;
                 pageStack.push (streamPage);
@@ -200,47 +236,55 @@ Page {
             id: pulley;
 
             MenuItem {
-                text: qsTr ("Login / logout");
+                text: qsTr ("Logout account");
                 font.family: Theme.fontFamilyHeading;
+                enabled: !Feedly.isOffline;
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
                 onClicked: {
-
+                    remorseLogout.execute ("Login out",
+                                     function () {
+                                         // TODO : logout, delete cache, show login page
+                                     },
+                                     5000);
                 }
             }
             MenuItem {
                 text: qsTr ("Add new feed...");
                 font.family: Theme.fontFamilyHeading;
+                enabled: !Feedly.isOffline;
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
                 onClicked: {
-
+                    // TODO : add dialog to search / add feed
                 }
             }
             MenuItem {
-                text: qsTr ("Go offline / online");
+                text: qsTr ("Offline mode : <b>%1</b>").arg (Feedly.isOffline ? qsTr ("ON") : qsTr ("OFF"));
+                textFormat: Text.StyledText;
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
                 onClicked: {
-
+                    Feedly.isOffline = !Feedly.isOffline;
                 }
             }
             MenuItem {
                 text: qsTr ("Refresh all");
                 font.family: Theme.fontFamilyHeading;
+                enabled: !Feedly.isOffline;
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
                 onClicked: {
-
+                    Feedly.refreshAll ();
                 }
             }
         }
@@ -267,6 +311,15 @@ Page {
             margins: 0;
         }
         onClicked: { view.scrollToTop (); }
+    }
+    Loader {
+        active: !Feedly.isLogged;
+        asynchronous: true;
+        sourceComponent: SilicaWebView {
+            id: webView;
+            url: Feedly.getOAuthPageUrl ();
+        }
+        anchors.fill: parent;
     }
 }
 

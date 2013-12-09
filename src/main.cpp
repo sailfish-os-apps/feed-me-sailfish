@@ -22,7 +22,7 @@ int main (int argc, char * argv []){
     qmlRegisterUncreatableType <QAbstractItemModel>  ("harbour.feedme.myQtCoreImports", 5, 1, "AbstractItemModel", "");
     qmlRegisterUncreatableType <QAbstractProxyModel> ("harbour.feedme.myQtCoreImports", 5, 1, "AbstractProxyMode", "");
     qmlRegisterUncreatableType <QQmlPropertyMap>     ("harbour.feedme.myQtCoreImports", 5, 1, "QmlPropertyMap", "");
-    qmlRegisterUncreatableType <MyDataBase>          ("harbour.feedme.myQtCoreImports", 5, 1, "Database", "");
+    qmlRegisterUncreatableType <MyFeedlyApi>         ("harbour.feedme.myQtCoreImports", 5, 1, "FeedlyApi", "");
     qmlRegisterType            <MyCategory>          ("harbour.feedme.myQtCoreImports", 5, 1, "CategoryInfo");
     qmlRegisterType            <MyFeed>              ("harbour.feedme.myQtCoreImports", 5, 1, "FeedInfo");
     qmlRegisterType            <MyContent>           ("harbour.feedme.myQtCoreImports", 5, 1, "ContentInfo");
@@ -30,7 +30,7 @@ int main (int argc, char * argv []){
     app->setApplicationName ("FeedMe");
     app->setOrganizationName ("TheBootroo");
     QQuickView * view = SailfishApp::createView ();
-    view->rootContext ()->setContextProperty ("Feedly", new MyDataBase (view));
+    view->rootContext ()->setContextProperty ("Feedly", new MyFeedlyApi (view));
     view->setSource (QUrl ("qrc:/qml/harbour-feedme.qml"));
     view->show ();
     return app->exec();

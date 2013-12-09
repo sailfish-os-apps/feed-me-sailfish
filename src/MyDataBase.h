@@ -19,6 +19,29 @@
 #include <QMetaProperty>
 #include <QMetaMethod>
 #include <QRegularExpression>
+#include <QSettings>
+#include <QTcpServer>
+#include <QTcpSocket>
+#include <QByteArray>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QIODevice>
+#include <QAbstractSocket>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonValue>
+#include <QJsonObject>
+#include <QUrl>
+#include <QUrlQuery>
+#include <QTimer>
+#include <QQueue>
+
+#define apiBaseUrl       QString ("http://sandbox.feedly.com")
+#define apiClientId      QString ("sandbox221")
+#define apiClientSecret  QString ("AX1EKDZVWUYOSX9RR2VXR8SE")
+#define apiRedirectUri   QString ("http://localhost")
+#define apiAuthScope     QString ("https://cloud.feedly.com/subscriptions")
 
 #define QML_PUBLIC_PROPERTY(type, name) \
     protected: \
@@ -90,39 +113,97 @@ class MyContent : public QObject {
 public: explicit MyContent (QObject * parent = NULL) : QObject (parent) { }
 };
 
-class MyDataBase : public QObject {
+class MyFeedlyApi : public QObject {
     Q_OBJECT
     QML_PUBLIC_PROPERTY   (QString,           currentStreamId)
     QML_PUBLIC_PROPERTY   (QString,           currentEntryId)
     QML_PUBLIC_PROPERTY   (QVariantList,      subscriptionsList)
     QML_PUBLIC_PROPERTY   (QVariantList,      newsStreamList)
-    QML_PUBLIC_PROPERTY   (bool,              showOnlyUnread)
+    QML_PUBLIC_PROPERTY   (bool,              isPolling)
+    QML_READONLY_PROPERTY (int,               port)
+    Q_PROPERTY (QString apiCode         READ getApiCode         WRITE setApiCode         NOTIFY apiCodeChanged)
+    Q_PROPERTY (QString apiUserId       READ getApiUserId       WRITE setApiUserId       NOTIFY apiUserIdChanged)
+    Q_PROPERTY (QString apiAccessToken  READ getApiAccessToken  WRITE setApiAccessToken  NOTIFY apiAccessTokenChanged)
+    Q_PROPERTY (QString apiRefreshToken READ getApiRefreshToken WRITE setApiRefreshToken NOTIFY apiRefreshTokenChanged)
+    Q_PROPERTY (bool    showOnlyUnread  READ getShowOnlyUnread  WRITE setShowOnlyUnread  NOTIFY showOnlyUnreadChanged)
+    Q_PROPERTY (bool    isLogged        READ getIsLogged        WRITE setIsLogged        NOTIFY isLoggedChanged)
+    Q_PROPERTY (bool    isOffline       READ getIsOffline       WRITE setIsOffline       NOTIFY isOfflineChanged)
 
-public:
-    explicit MyDataBase (QObject * parent = NULL);
-    virtual ~MyDataBase ();
+public: // oop
+    explicit MyFeedlyApi (QObject * parent = NULL);
+    virtual ~MyFeedlyApi ();
 
-    Q_INVOKABLE MyFeed     * getFeedInfo     (QString feedId);
-    Q_INVOKABLE MyCategory * getCategoryInfo (QString categoryId);
-    Q_INVOKABLE MyContent  * getContentInfo  (QString entryId);
+public: // methods
+    Q_INVOKABLE MyFeed     * getFeedInfo       (QString feedId);
+    Q_INVOKABLE MyCategory * getCategoryInfo   (QString categoryId);
+    Q_INVOKABLE MyContent  * getContentInfo    (QString entryId);
+    Q_INVOKABLE QString      getOAuthPageUrl   ();
+    Q_INVOKABLE QString      getStreamIdAll    ();
+    Q_INVOKABLE QString      getStreamIdMarked ();
 
-signals:
+    Q_INVOKABLE void         refreshAll      ();
 
+public: // getters
+    bool    getIsLogged        () const { return m_settings->value ("isLogged",        "").toBool   (); }
+    bool    getIsOffline       () const { return m_settings->value ("isOffline",       "").toBool   (); }
+    QString getApiCode         () const { return m_settings->value ("apiCode",         "").toString (); }
+    QString getApiUserId       () const { return m_settings->value ("apiUserId",       "").toString (); }
+    QString getApiAccessToken  () const { return m_settings->value ("apiAccessToken",  "").toString (); }
+    QString getApiRefreshToken () const { return m_settings->value ("apiRefreshToken", "").toString (); }
+    bool    getShowOnlyUnread  () const { return m_settings->value ("showOnlyUnread",  "").toBool   (); }
 
-public slots:
+public: // setters
+    void setApiCode         (QString arg);
+    void setApiUserId       (QString arg);
+    void setApiAccessToken  (QString arg);
+    void setApiRefreshToken (QString arg);
+    void setShowOnlyUnread  (bool    arg);
+    void setIsLogged        (bool    arg);
+    void setIsOffline       (bool    arg);
+
+signals: // notifiers
+    void apiCodeChanged         (QString arg);
+    void apiUserIdChanged       (QString arg);
+    void apiAccessTokenChanged  (QString arg);
+    void apiRefreshTokenChanged (QString arg);
+    void showOnlyUnreadChanged  (bool    arg);
+    void isLoggedChanged        (bool    arg);
+    void isOfflineChanged       (bool    arg);
+
+signals: // events
+    void dataReceived (QString data);
+
+public slots: // methods
     void loadSubscriptions ();
     void loadUnreadCounts  ();
 
-protected:
-    void initializeTables   ();
-    void refreshStreamModel ();
+protected slots: // internal routines
+    void initializeTables     ();
+    void refreshStreamModel   ();
+    void requestTokens        ();
+    void requestCategories    ();
+    void requestSubscriptions ();
+    void requestContents      ();
+    void syncAllFlags         ();
 
-private slots:
-    void onCurrentStreamIdChanged (QString arg);
-    void onShowOnlyUnreadChanged  (bool    arg);
+private slots: // internal callbacks
+    void onCurrentStreamIdChanged    (QString arg);
+    void onShowOnlyUnreadChanged     (bool    arg);
+    void onIsOfflineChanged          (bool    arg);
+    void onIncomingConnection        ();
+    void onSockReadyRead             ();
+    void onRequestTokenReply         ();
+    void onRequestCategoriesReply    ();
+    void onRequestSubscriptionsReply ();
+    void onRequestContentsReply      ();
 
-private:
+private: // members
     QSqlDatabase                 m_database;
+    QSettings                  * m_settings;
+    QTimer                     * m_timer;
+    QTcpServer                 * m_tcpServer;
+    QNetworkAccessManager      * m_netMan;
+    QQueue<QString>              m_pollQueue;
     QHash<QString, MyFeed     *> m_feeds;
     QHash<QString, MyCategory *> m_categories;
     QHash<QString, MyContent  *> m_contents;
