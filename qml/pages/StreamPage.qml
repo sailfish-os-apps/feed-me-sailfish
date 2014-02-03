@@ -162,12 +162,27 @@ Page {
                 }
             }
         }
+        PushUpMenu {
+            id: pulleyUp;
+
+            MenuItem {
+                text: qsTr ("Load older items...");
+                font.family: Theme.fontFamilyHeading;
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                }
+                onClicked: {
+                    // TODO : logic to load older items
+                }
+            }
+        }
         VerticalScrollDecorator { }
     }
     Button {
         id: btnBackToTop;
         text: qsTr ("Back to top");
-        visible: (!view.atYBeginning && view.visibleArea.heightRatio < 1.0 && !pulley.active);
+        visible: (!view.atYBeginning && view.visibleArea.heightRatio < 1.0 && !pulley.active && !pulleyUp.active);
         anchors {
             left: parent.left;
             right: parent.right;
