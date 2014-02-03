@@ -103,7 +103,7 @@ Page {
                 font.pixelSize: Theme.fontSizeSmall;
                 font.family: Theme.fontFamilyHeading;
                 elide: Text.ElideRight;
-                color: (model.index % 2 ? Theme.primaryColor : Theme.secondaryColor);
+                color: Theme.primaryColor;
                 anchors {
                     left: parent.left;
                     right: parent.right;

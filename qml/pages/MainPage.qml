@@ -222,7 +222,7 @@ Page {
                 truncationMode: TruncationMode.Fade;
                 font.pixelSize: Theme.fontSizeSmall;
                 font.family: Theme.fontFamilyHeading;
-                color: Theme.secondaryColor;
+                color: Theme.primaryColor;
                 anchors {
                     left: parent.left;
                     right: bubble.left;
