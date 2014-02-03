@@ -178,24 +178,26 @@ public slots: // methods
     void loadUnreadCounts  ();
 
 protected slots: // internal routines
-    void initializeTables     ();
-    void refreshStreamModel   ();
-    void requestTokens        ();
-    void requestCategories    ();
-    void requestSubscriptions ();
-    void requestContents      ();
-    void syncAllFlags         ();
+    void initializeTables      ();
+    void refreshStreamModel    ();
+    void requestTokens         ();
+    void requestCategories     ();
+    void requestSubscriptions  ();
+    void requestContents       ();
+    void requestReadOperations ();
+    void syncAllFlags          ();
 
 private slots: // internal callbacks
-    void onCurrentStreamIdChanged    (QString arg);
-    void onShowOnlyUnreadChanged     (bool    arg);
-    void onIsOfflineChanged          (bool    arg);
-    void onIncomingConnection        ();
-    void onSockReadyRead             ();
-    void onRequestTokenReply         ();
-    void onRequestCategoriesReply    ();
-    void onRequestSubscriptionsReply ();
-    void onRequestContentsReply      ();
+    void onCurrentStreamIdChanged     (QString arg);
+    void onShowOnlyUnreadChanged      (bool    arg);
+    void onIsOfflineChanged           (bool    arg);
+    void onIncomingConnection         ();
+    void onSockReadyRead              ();
+    void onRequestTokenReply          ();
+    void onRequestCategoriesReply     ();
+    void onRequestSubscriptionsReply  ();
+    void onRequestContentsReply       ();
+    void onRequestReadOperationsReply ();
 
 private: // members
     QSqlDatabase                 m_database;

@@ -117,14 +117,14 @@ void MyFeedlyApi::initializeTables () {
     m_database.exec ("CREATE TABLE IF NOT EXISTS categories ( "
                      "    categoryId TEXT PRIMARY KEY NOT NULL DEFAULT (''), "
                      "    label TEXT NOT NULL DEFAULT ('') "
-                     ")");
+                     ");");
     m_database.exec ("CREATE TABLE IF NOT EXISTS feeds ( "
                      "    feedId TEXT PRIMARY KEY NOT NULL DEFAULT (''), "
                      "    title TEXT NOT NULL DEFAULT (''), "
                      "    website TEXT NOT NULL DEFAULT (''), "
                      "    updated INTEGER, "
                      "    categoryId TEXT NOT NULL DEFAULT ('') "
-                     ")");
+                     ");");
     m_database.exec ("CREATE TABLE IF NOT EXISTS news ( "
                      "    entryId TEXT PRIMARY KEY NOT NULL DEFAULT (''), "
                      "    streamId TEXT NOT NULL DEFAULT (''), "
@@ -136,9 +136,15 @@ void MyFeedlyApi::initializeTables () {
                      "    link TEXT DEFAULT (''), "
                      "    published INTEGER, "
                      "    crawled INTEGER, "
-                     "    updated INTEGER, "
-                     "    dirty INTEGER NOT NULL DEFAULT (0)"
-                     ")");
+                     "    updated INTEGER "
+                     ");");
+    m_database.exec ("CREATE TABLE IF NOT EXISTS sync ( "
+                     "    uid INTEGER PRIMARY KEY AUTOINCREMENT, "
+                     "    type TEXT NOT NULL, "
+                     "    action TEXT NOT NULL, "
+                     "    item TEXT NOT NULL, "
+                     "    info TEXT NOT NULL "
+                     ");");
     m_database.commit ();
 }
 
@@ -339,8 +345,15 @@ void MyFeedlyApi::requestContents () {
     connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRequestContentsReply);
 }
 
-void MyFeedlyApi::syncAllFlags () {
+void MyFeedlyApi::requestReadOperations () {
+    QNetworkRequest request (QUrl (QString ("%1/v3/markers/reads").arg (apiBaseUrl)));
+    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (getApiAccessToken ()).toLocal8Bit ());
+    QNetworkReply * reply = m_netMan->get (request);
+    connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRequestReadOperationsReply);
+}
 
+void MyFeedlyApi::syncAllFlags () {
+    requestReadOperations ();
 }
 
 /******************************* CALLBACKS *****************************************/
@@ -578,6 +591,25 @@ void MyFeedlyApi::onRequestContentsReply () {
     }
     else {
         set_isPolling (false);
+        syncAllFlags ();
+    }
+}
+
+void MyFeedlyApi::onRequestReadOperationsReply () {
+    qDebug () << "onRequestReadOperationsReply";
+    QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
+    Q_ASSERT (reply);
+    QByteArray data = reply->readAll ();
+    qDebug () << "data=\n" << data;
+    QJsonParseError error;
+    QJsonDocument json = QJsonDocument::fromJson (data, &error);
+    if (!json.isNull () && json.isObject ()) {
+
+    }
+    else {
+        qWarning () << "Failed to parse contents from JSON response :"
+                    << error.errorString ()
+                    << data;
     }
 }
 
@@ -621,7 +653,7 @@ void MyFeedlyApi::loadSubscriptions () {
                     << query.lastError ().text ();
     }
     set_subscriptionsList (ret);
-    refreshAll ();
+    //refreshAll ();
 }
 
 void MyFeedlyApi::loadUnreadCounts () {
@@ -697,7 +729,7 @@ void MyFeedlyApi::refreshStreamModel () {
     else if (m_currentStreamId.endsWith ("/tag/global.saved")){
         clauseSelect = " SELECT news.* ";
         clauseFrom   = " FROM news ";
-        clauseWhere.append (" news.marked=1");
+        clauseWhere.append (" news.marked=1 ");
     }
     else if (m_currentStreamId.contains ("/category/")) {
         clauseSelect = " SELECT news.*,feeds.categoryId,feeds.feedId";

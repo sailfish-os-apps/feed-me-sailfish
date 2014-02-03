@@ -14,6 +14,13 @@ Page {
     property ContentInfo currentNewsItem : Feedly.getContentInfo (Feedly.currentEntryId);
     property FeedInfo    currentFeedItem : null;
     onCurrentNewsItemChanged: {
+        view.contentY = 0;
+        currentFeedItem = null;
+        repeaterImages.model = 0;
+        htmlView.text = "";
+        imgStreamIcon.source = "";
+        labelSource.text = "";
+        dialogImg.uri = "";
         if (currentNewsItem !== null) {
             currentFeedItem = Feedly.getFeedInfo (currentNewsItem.streamId);
             if (currentNewsItem.unread) {
@@ -24,14 +31,6 @@ Page {
             repeaterImages.model = extractImages (currentNewsItem.content);
             imgStreamIcon.source = googleFaviconWebServiceUrl.arg (currentFeedItem.website);
             labelSource.text =  currentFeedItem.title + (currentNewsItem.author !== "" ? "  (<b>%1</b>)".arg (currentNewsItem.author) : "");
-        }
-        else {
-            currentFeedItem = null;
-            repeaterImages.model = 0;
-            htmlView.text = "";
-            imgStreamIcon.source = "";
-            labelSource.text = "";
-            dialogImg.uri = "";
         }
     }
 
@@ -46,6 +45,7 @@ Page {
             if (url !== ""
                     && !url.contains ("res3.feedsportal.com")
                     && !url.contains ("feeds.feedburner.com")
+                    && !url.contains ("doubleclick.net")
                     && !url.contains ("feeds.wordpress.com")
                     && !url.contains ("stats.wordpress.com")
                     && !url.contains ("/smilies/")
@@ -87,6 +87,41 @@ Page {
         contentHeight: (layout.height + layout.anchors.margins * 2);
         anchors.fill: parent;
 
+        PullDownMenu {
+            id: pulley;
+
+            MenuItem {
+                text: qsTr ("Share...");
+                font.family: Theme.fontFamilyHeading;
+                enabled: false; // TODO : when Jolla publish Sharing API
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                }
+                onClicked: { }
+            }
+            MenuItem {
+                text: qsTr ("Mark for later");
+                font.family: Theme.fontFamilyHeading;
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                }
+                onClicked: {
+                    // TODO : api to change marked
+                }
+            }
+            MenuItem {
+                text: qsTr ("View original link");
+                font.family: Theme.fontFamilyHeading;
+                enabled: currentNewsItem;
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                }
+                onClicked: { Qt.openUrlExternally (currentNewsItem.link); }
+            }
+        }
         Column {
             id: layout;
             spacing: Theme.paddingLarge;
@@ -164,7 +199,7 @@ Page {
                     delegate: Item {
                         width: 250;
                         height: (width /*+ bar.height*/);
-                        y: pos.y;
+                        y: (pos ? pos.y : 0);
                         anchors.horizontalCenter: htmlView.horizontalCenter;
 
                         property var pos : {

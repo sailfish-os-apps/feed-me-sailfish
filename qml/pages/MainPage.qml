@@ -137,27 +137,43 @@ Page {
             property: "categoryId";
             delegate: BackgroundItem {
                 id: itemCategory;
-                onPressAndHold: {
-                    currentCategory = (currentCategory !== section ? section : "");
-                }
                 onClicked: {
                     Feedly.currentStreamId = categoryInfo.streamId;
                     pageStack.push (streamPage);
                 }
                 ListView.onAdd: AddAnimation { target: itemCategory; }
 
-                property CategoryInfo categoryInfo : Feedly.getCategoryInfo (section);
+                property bool         isCurrentSection : (currentCategory === section);
+                property CategoryInfo categoryInfo     : Feedly.getCategoryInfo (section);
 
+                MouseArea {
+                    id: clicker;
+                    width: height;
+                    anchors {
+                        top: parent.top;
+                        left: parent.left;
+                        bottom: parent.bottom;
+                    }
+                    onClicked: { currentCategory = (!itemCategory.isCurrentSection ? section : ""); }
+
+                    Image {
+                        source: "../img/arrow-right.png";
+                        rotation: (itemCategory.isCurrentSection ? +90 : 0);
+                        anchors.centerIn: parent;
+
+                        Behavior on rotation { NumberAnimation { duration: 180; } }
+                    }
+                }
                 Label {
                     text: itemCategory.categoryInfo.label;
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
                     font.family: Theme.fontFamilyHeading;
-                    color: (currentCategory === section ? Theme.highlightColor : Theme.primaryColor);
+                    color: (itemCategory.isCurrentSection ? Theme.highlightColor : Theme.primaryColor);
                     anchors {
-                        left: parent.left;
+                        left: clicker.right;
                         right: bubble.left;
-                        leftMargin: Theme.paddingLarge;
+                        leftMargin: Theme.paddingSmall;
                         rightMargin: Theme.paddingSmall;
                         verticalCenter: parent.verticalCenter;
                     }

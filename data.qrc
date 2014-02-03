@@ -7,5 +7,15 @@
         <file>qml/pages/ContentPage.qml</file>
         <file>qml/pages/StreamPage.qml</file>
         <file>qml/components/Bubble.qml</file>
+        <file>qml/img/arrow-down.png</file>
+        <file>qml/img/arrow-down.svg</file>
+        <file>qml/img/arrow-left.png</file>
+        <file>qml/img/arrow-left.svg</file>
+        <file>qml/img/arrow-right.png</file>
+        <file>qml/img/arrow-right.svg</file>
+        <file>qml/img/arrow-up.png</file>
+        <file>qml/img/arrow-up.svg</file>
+        <file>qml/img/logo.svg</file>
+        <file>qml/img/logo.png</file>
     </qresource>
 </RCC>
