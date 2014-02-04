@@ -30,23 +30,12 @@ Page {
         header: Column {
             spacing: Theme.paddingSmall;
             anchors {
-                left: (parent ? parent.left : undefined);
+                left:  (parent ? parent.left  : undefined);
                 right: (parent ? parent.right : undefined);
             }
 
             PageHeader {
                 title: qsTr ("Feed'me");
-
-                BusyIndicator {
-                    running: Feedly.isPolling;
-                    visible: running;
-                    size: BusyIndicatorSize.Medium;
-                    anchors {
-                        left: parent.left;
-                        margins: Theme.paddingLarge;
-                        verticalCenter: parent.verticalCenter;
-                    }
-                }
             }
             Label {
                 text: qsTr ("Read your daily news, easily and quickly.");
@@ -191,7 +180,7 @@ Page {
         }
         delegate: ListItem {
             id: itemFeed;
-            height: (visible ? (menuOpen ? _menuItem.height + contentItem.height : contentItem.height) : 0);
+            height: (visible ? (menuOpen ? _menuItem.height + contentHeight : contentHeight) : 0);
             visible: (feedInfo.categoryId === currentCategory);
             menu: Component {
                 ContextMenu {
@@ -216,6 +205,28 @@ Page {
 
             property FeedInfo feedInfo : Feedly.getFeedInfo (model ['feedId']);
 
+            Item {
+                id: holder;
+                width: height;
+                anchors {
+                    top: parent.top;
+                    left: parent.left;
+                    bottom: parent.bottom;
+                }
+
+                Image {
+                    id: symbolStatus;
+                    visible: (itemFeed.feedInfo.status !== FeedInfo.Idle);
+                    source: "../img/pending.png";
+                    anchors.centerIn: parent;
+                }
+                BusyIndicator {
+                    running: visible;
+                    visible: (itemFeed.feedInfo.status === FeedInfo.Fetching);
+                    size: BusyIndicatorSize.Medium;
+                    anchors.centerIn: parent;
+                }
+            }
             Label {
                 text: itemFeed.feedInfo.title;
                 textFormat: Text.PlainText;
@@ -224,9 +235,9 @@ Page {
                 font.family: Theme.fontFamilyHeading;
                 color: Theme.primaryColor;
                 anchors {
-                    left: parent.left;
+                    left: holder.right;
                     right: bubble.left;
-                    leftMargin: (Theme.paddingLarge * 2);
+                    leftMargin: Theme.paddingSmall;
                     rightMargin: Theme.paddingSmall;
                     verticalCenter: parent.verticalCenter;
                 }
@@ -246,6 +257,7 @@ Page {
             left: parent.left;
             right: parent.right;
             bottom: parent.bottom;
+            bottomMargin: (panel.expanded ? panel.height : 0);
         }
 
         PullDownMenu {
@@ -261,10 +273,10 @@ Page {
                 }
                 onClicked: {
                     remorseLogout.execute ("Login out",
-                                     function () {
-                                         // TODO : logout, delete cache, show login page
-                                     },
-                                     5000);
+                                           function () {
+                                               // TODO : logout, delete cache, show login page
+                                           },
+                                           5000);
                 }
             }
             MenuItem {
@@ -306,6 +318,41 @@ Page {
         }
         VerticalScrollDecorator {}
     }
+    DockedPanel {
+        id: panel;
+        dock: Dock.Bottom;
+        open: Feedly.isPolling;
+        height: (indicatorPolling.height + indicatorPolling.anchors.margins * 2);
+        anchors {
+            left: parent.left;
+            right: parent.right;
+        }
+
+        BusyIndicator {
+            id: indicatorPolling;
+            running: Feedly.isPolling;
+            visible: running;
+            size: BusyIndicatorSize.Medium;
+            anchors {
+                left: parent.left;
+                margins: Theme.paddingMedium;
+                verticalCenter: parent.verticalCenter;
+            }
+        }
+        Label {
+            text: qsTr ("Refreshing feeds...");
+            textFormat: Text.PlainText;
+            font.pixelSize: Theme.fontSizeSmall;
+            font.family: Theme.fontFamilyHeading;
+            color: Theme.secondaryColor;
+            anchors {
+                left: indicatorPolling.right;
+                right: parent.right;
+                margins: Theme.paddingLarge;
+                verticalCenter: parent.verticalCenter;
+            }
+        }
+    }
     OpacityRampEffect {
         sourceItem: view;
         enabled: (!view.atYEnd);
@@ -314,16 +361,16 @@ Page {
         slope: 1.35;
         width: view.width;
         height: view.height;
-        anchors.fill: null;
+        anchors.fill: view;
     }
     Button {
         id: btnBackToTop;
         text: qsTr ("Back to top");
         visible: (!view.atYBeginning && view.visibleArea.heightRatio < 1.0 && !pulley.active);
         anchors {
-            left: parent.left;
-            right: parent.right;
-            bottom: parent.bottom;
+            left: view.left;
+            right: view.right;
+            bottom: view.bottom;
             margins: 0;
         }
         onClicked: { view.scrollToTop (); }

@@ -211,6 +211,7 @@ void MyFeedlyApi::refreshAll () {
         m_pollQueue.clear ();
         foreach (QString feedId, m_feeds.keys ()) {
             m_pollQueue.enqueue (feedId);
+            getFeedInfo (feedId)->set_status (MyFeed::Pending);
         }
         if (!m_pollQueue.isEmpty ()) {
             set_isPolling (true);
@@ -311,6 +312,7 @@ void MyFeedlyApi::requestSubscriptions () {
 
 void MyFeedlyApi::requestContents () {
     QString feedId = m_pollQueue.dequeue ();
+    getFeedInfo (feedId)->set_status (MyFeed::Fetching);
     qDebug () << "requestContents :" << feedId;
     qint64 timestamp = 0;
     QSqlQuery query (m_database);
@@ -342,6 +344,7 @@ void MyFeedlyApi::requestContents () {
     QNetworkRequest request (url);
     request.setRawHeader ("Authorization", QString ("OAuth %1").arg (getApiAccessToken ()).toLocal8Bit ());
     QNetworkReply * reply = m_netMan->get (request);
+    reply->setProperty ("feedId", feedId);
     connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRequestContentsReply);
 }
 
@@ -585,6 +588,7 @@ void MyFeedlyApi::onRequestContentsReply () {
                     << error.errorString ()
                     << data;
     }
+    getFeedInfo (reply->property("feedId").toString ())->set_status (MyFeed::Idle);
     loadUnreadCounts ();
     if (!m_pollQueue.isEmpty ()) {
         m_timer->start (100); // do next quickly

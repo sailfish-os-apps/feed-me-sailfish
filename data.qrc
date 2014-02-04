@@ -17,5 +17,9 @@
         <file>qml/img/arrow-up.svg</file>
         <file>qml/img/logo.svg</file>
         <file>qml/img/logo.png</file>
+        <file>qml/img/fetching.png</file>
+        <file>qml/img/fetching.svg</file>
+        <file>qml/img/pending.png</file>
+        <file>qml/img/pending.svg</file>
     </qresource>
 </RCC>

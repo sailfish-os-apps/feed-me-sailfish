@@ -82,18 +82,38 @@ class MyCategory : public QObject {
     QML_PUBLIC_PROPERTY (QString, label)
     QML_PUBLIC_PROPERTY (int,     counter)
 
-public: explicit MyCategory (QObject * parent = NULL) : QObject (parent) { }
+public: explicit MyCategory (QObject * parent = NULL) : QObject (parent) {
+        m_streamId = "";
+        m_label    = "";
+        m_counter  = 0;
+    }
 };
 
 class MyFeed : public QObject {
     Q_OBJECT
+    Q_ENUMS (FeedStatus)
     QML_PUBLIC_PROPERTY (QString, streamId)
     QML_PUBLIC_PROPERTY (QString, categoryId)
     QML_PUBLIC_PROPERTY (QString, title)
     QML_PUBLIC_PROPERTY (QString, website)
+    QML_PUBLIC_PROPERTY (int,     status)
     QML_PUBLIC_PROPERTY (int,     counter)
 
-public: explicit MyFeed (QObject * parent = NULL) : QObject (parent) { }
+public: explicit MyFeed (QObject * parent = NULL) : QObject (parent) {
+        m_categoryId = "";
+        m_streamId   = "";
+        m_website    = "";
+        m_title      = "";
+        m_counter    = 0;
+        m_status     = Idle;
+    }
+
+    enum FeedStatus {
+        Idle,
+        Pending,
+        Fetching,
+        Error
+    };
 };
 
 class MyContent : public QObject {
