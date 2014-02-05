@@ -75,8 +75,6 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     if (m_database.open ()) {
         qDebug ("Offline storage database opened.");
         initializeTables ();
-
-
     }
     else {
         qWarning () << "Offline storage database couldn't be loaded nor created !"
@@ -426,24 +424,30 @@ void MyFeedlyApi::onRequestTokenReply () {
     qDebug () << "onRequestTokenReply";
     QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
     Q_ASSERT (reply);
-    QByteArray data = reply->readAll ();
-    QJsonParseError error;
-    QJsonDocument json = QJsonDocument::fromJson (data, &error);
-    if (!json.isNull () && json.isObject ()) {
-        QJsonObject obj = json.object ();
-        setApiUserId       (obj.value ("id").toString ());
-        setApiAccessToken  (obj.value ("access_token").toString ());
-        setApiRefreshToken (obj.value ("refresh_token").toString ());
-        qDebug () << "userId=" << getApiUserId ()
-                  << "accessToken=" << getApiAccessToken ()
-                  << "refreshToken=" << getApiRefreshToken ();
-        setIsLogged (true);
-        requestCategories ();
+    if (reply->error () == QNetworkReply::NoError) {
+        QByteArray data = reply->readAll ();
+        QJsonParseError error;
+        QJsonDocument json = QJsonDocument::fromJson (data, &error);
+        if (!json.isNull () && json.isObject ()) {
+            QJsonObject obj = json.object ();
+            setApiUserId       (obj.value ("id").toString ());
+            setApiAccessToken  (obj.value ("access_token").toString ());
+            setApiRefreshToken (obj.value ("refresh_token").toString ());
+            qDebug () << "userId=" << getApiUserId ()
+                      << "accessToken=" << getApiAccessToken ()
+                      << "refreshToken=" << getApiRefreshToken ();
+            setIsLogged (true);
+            requestCategories ();
+        }
+        else {
+            qWarning () << "Failed to parse tokens from JSON response :"
+                        << error.errorString ()
+                        << data;
+        }
     }
     else {
-        qWarning () << "Failed to parse tokens from JSON response :"
-                    << error.errorString ()
-                    << data;
+        qWarning () << "Network error on token request :"
+                    << reply->errorString ();
     }
 }
 
@@ -451,48 +455,54 @@ void MyFeedlyApi::onRequestCategoriesReply () {
     qDebug () << "onRequestCategoriesReply";
     QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
     Q_ASSERT (reply);
-    QByteArray data = reply->readAll ();
-    QJsonParseError error;
-    QJsonDocument json = QJsonDocument::fromJson (data, &error);
-    if (!json.isNull () && json.isArray ()) {
-        QJsonArray array = json.array ();
-        QStringList categories;
-        ///// ADD NEW ITEMS /////
-        m_database.transaction ();
-        foreach (QJsonValue value, array) {
-            QJsonObject item = value.toObject ();
+    if (reply->error () == QNetworkReply::NoError) {
+        QByteArray data = reply->readAll ();
+        QJsonParseError error;
+        QJsonDocument json = QJsonDocument::fromJson (data, &error);
+        if (!json.isNull () && json.isArray ()) {
+            QJsonArray array = json.array ();
+            QStringList categories;
+            ///// ADD NEW ITEMS /////
+            m_database.transaction ();
+            foreach (QJsonValue value, array) {
+                QJsonObject item = value.toObject ();
+                QSqlQuery query (m_database);
+                query.prepare ("INSERT OR IGNORE INTO categories (categoryId) VALUES (:categoryId);");
+                query.bindValue (":categoryId",jsonPathAsVariant (item, "id").toString ());
+                query.exec ();
+                categories << jsonPathAsVariant (item, "id").toString ();
+            }
+            m_database.commit ();
+            ///// UPDATE ALL ITEMS /////
+            m_database.transaction ();
+            foreach (QJsonValue value, array) {
+                QJsonObject item = value.toObject ();
+                QSqlQuery query (m_database);
+                query.prepare ("UPDATE categories SET label=:label WHERE categoryId=:categoryId;");
+                query.bindValue (":label",      jsonPathAsVariant (item, "label").toString ());
+                query.bindValue (":categoryId", jsonPathAsVariant (item, "id").toString ());
+                query.exec ();
+            }
+            m_database.commit ();
+            ///// REMOVE OLD ITEMS /////
+            m_database.transaction ();
             QSqlQuery query (m_database);
-            query.prepare ("INSERT OR IGNORE INTO categories (categoryId) VALUES (:categoryId);");
-            query.bindValue (":categoryId",jsonPathAsVariant (item, "id").toString ());
+            query.prepare (QString ("DELETE FROM categories "
+                                    "WHERE categoryId NOT IN (\"%1\");").arg (categories.join ("\", \"")));
             query.exec ();
-            categories << jsonPathAsVariant (item, "id").toString ();
+            m_database.commit ();
+            qDebug () << "categories=" << categories;
+            requestSubscriptions ();
         }
-        m_database.commit ();
-        ///// UPDATE ALL ITEMS /////
-        m_database.transaction ();
-        foreach (QJsonValue value, array) {
-            QJsonObject item = value.toObject ();
-            QSqlQuery query (m_database);
-            query.prepare ("UPDATE categories SET label=:label WHERE categoryId=:categoryId;");
-            query.bindValue (":label",      jsonPathAsVariant (item, "label").toString ());
-            query.bindValue (":categoryId", jsonPathAsVariant (item, "id").toString ());
-            query.exec ();
+        else {
+            qWarning () << "Failed to parse categories from JSON response :"
+                        << error.errorString ()
+                        << data;
         }
-        m_database.commit ();
-        ///// REMOVE OLD ITEMS /////
-        m_database.transaction ();
-        QSqlQuery query (m_database);
-        query.prepare (QString ("DELETE FROM categories "
-                                "WHERE categoryId NOT IN (\"%1\");").arg (categories.join ("\", \"")));
-        query.exec ();
-        m_database.commit ();
-        qDebug () << "categories=" << categories;
-        requestSubscriptions ();
     }
     else {
-        qWarning () << "Failed to parse categories from JSON response :"
-                    << error.errorString ()
-                    << data;
+        qWarning () << "Network error on categories request :"
+                    << reply->errorString ();
     }
 }
 
@@ -500,54 +510,60 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
     qDebug () << "onRequestSubscriptionsReply";
     QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
     Q_ASSERT (reply);
-    QByteArray data = reply->readAll ();
-    QJsonParseError error;
-    QJsonDocument json = QJsonDocument::fromJson (data, &error);
-    if (!json.isNull () && json.isArray ()) {
-        QJsonArray array = json.array ();
-        QStringList feeds;
-        ///// ADD NEW ITEMS /////
-        m_database.transaction ();
-        foreach (QJsonValue value, array) {
-            QJsonObject item = value.toObject ();
+    if (reply->error () == QNetworkReply::NoError) {
+        QByteArray data = reply->readAll ();
+        QJsonParseError error;
+        QJsonDocument json = QJsonDocument::fromJson (data, &error);
+        if (!json.isNull () && json.isArray ()) {
+            QJsonArray array = json.array ();
+            QStringList feeds;
+            ///// ADD NEW ITEMS /////
+            m_database.transaction ();
+            foreach (QJsonValue value, array) {
+                QJsonObject item = value.toObject ();
+                QSqlQuery query (m_database);
+                query.prepare ("INSERT OR IGNORE INTO feeds (feedId) VALUES (:feedId);");
+                query.bindValue (":feedId", jsonPathAsVariant (item, "id").toString ());
+                query.exec ();
+                feeds << jsonPathAsVariant (item, "id").toString ();
+            }
+            m_database.commit ();
+            ///// UPDATE ALL ITEMS /////
+            m_database.transaction ();
+            foreach (QJsonValue value, array) {
+                QJsonObject item = value.toObject ();
+                QSqlQuery query (m_database);
+                query.prepare ("UPDATE feeds "
+                               "SET title=:title, website=:website, updated=:updated, categoryId=:categoryId "
+                               "WHERE feedId=:feedId;");
+                query.bindValue (":title",      jsonPathAsVariant (item, "title").toString ());
+                query.bindValue (":website",    jsonPathAsVariant (item, "website").toString ());
+                query.bindValue (":updated",    jsonPathAsVariant (item, "updated").toReal ());
+                query.bindValue (":categoryId", jsonPathAsVariant (item, "categories/0/id").toString ());
+                query.bindValue (":feedId",     jsonPathAsVariant (item, "id").toString ());
+                query.exec ();
+            }
+            m_database.commit ();
+            ///// REMOVE OLD ITEMS /////
+            m_database.transaction ();
             QSqlQuery query (m_database);
-            query.prepare ("INSERT OR IGNORE INTO feeds (feedId) VALUES (:feedId);");
-            query.bindValue (":feedId", jsonPathAsVariant (item, "id").toString ());
+            query.prepare (QString ("DELETE FROM feeds "
+                                    "WHERE feeds NOT IN (\"%1\");").arg (feeds.join ("\", \"")));
             query.exec ();
-            feeds << jsonPathAsVariant (item, "id").toString ();
+            m_database.commit ();
+            qDebug () << "feeds=" << feeds;
+            loadSubscriptions ();
+            loadUnreadCounts  ();
         }
-        m_database.commit ();
-        ///// UPDATE ALL ITEMS /////
-        m_database.transaction ();
-        foreach (QJsonValue value, array) {
-            QJsonObject item = value.toObject ();
-            QSqlQuery query (m_database);
-            query.prepare ("UPDATE feeds "
-                           "SET title=:title, website=:website, updated=:updated, categoryId=:categoryId "
-                           "WHERE feedId=:feedId;");
-            query.bindValue (":title",      jsonPathAsVariant (item, "title").toString ());
-            query.bindValue (":website",    jsonPathAsVariant (item, "website").toString ());
-            query.bindValue (":updated",    jsonPathAsVariant (item, "updated").toReal ());
-            query.bindValue (":categoryId", jsonPathAsVariant (item, "categories/0/id").toString ());
-            query.bindValue (":feedId",     jsonPathAsVariant (item, "id").toString ());
-            query.exec ();
+        else {
+            qWarning () << "Failed to parse feeds from JSON response :"
+                        << error.errorString ()
+                        << data;
         }
-        m_database.commit ();
-        ///// REMOVE OLD ITEMS /////
-        m_database.transaction ();
-        QSqlQuery query (m_database);
-        query.prepare (QString ("DELETE FROM feeds "
-                                "WHERE feeds NOT IN (\"%1\");").arg (feeds.join ("\", \"")));
-        query.exec ();
-        m_database.commit ();
-        qDebug () << "feeds=" << feeds;
-        loadSubscriptions ();
-        loadUnreadCounts  ();
     }
     else {
-        qWarning () << "Failed to parse feeds from JSON response :"
-                    << error.errorString ()
-                    << data;
+        qWarning () << "Network error on feeds request :"
+                    << reply->errorString ();
     }
 }
 
@@ -555,43 +571,49 @@ void MyFeedlyApi::onRequestContentsReply () {
     qDebug () << "onRequestContentsReply";
     QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
     Q_ASSERT (reply);
-    QByteArray data = reply->readAll ();
-    QJsonParseError error;
-    QJsonDocument json = QJsonDocument::fromJson (data, &error);
-    if (!json.isNull () && json.isObject ()) {
-        QJsonObject obj = json.object ();
-        QJsonArray array = obj.value ("items").toArray ();
-        ///// ADD NEW ITEMS /////
-        m_database.transaction ();
-        foreach (QJsonValue value, array) {
-            QJsonObject item = value.toObject ();
-            QString content = jsonPathAsVariant (item, "content/content").toString ();
-            QString summary = jsonPathAsVariant (item, "summary/content").toString ();
-            QSqlQuery query (m_database);
-            query.prepare ("INSERT OR IGNORE INTO "
-                           "news (entryId, streamId, title, author, content, link, unread, published, updated, crawled) "
-                           "VALUES (:entryId, :streamId, :title, :author, :content, :link, :unread, :published, :updated, :crawled);");
-            query.bindValue (":entryId",   jsonPathAsVariant (item, "id").toString ());
-            query.bindValue (":streamId",  jsonPathAsVariant (item, "origin/streamId").toString ());
-            query.bindValue (":title",     jsonPathAsVariant (item, "title").toString ());
-            query.bindValue (":author",    jsonPathAsVariant (item, "author").toString ());
-            query.bindValue (":content",   (!content.isEmpty () ? content : summary));
-            query.bindValue (":link",      jsonPathAsVariant (item, "alternate/0/href").toString ());
-            query.bindValue (":unread",    jsonPathAsVariant (item, "unread").toBool ());
-            query.bindValue (":published", jsonPathAsVariant (item, "published").toReal ());
-            query.bindValue (":updated",   jsonPathAsVariant (item, "updated").toReal ());
-            query.bindValue (":crawled",   jsonPathAsVariant (item, "crawled").toReal ());
-            query.exec ();
+    if (reply->error () == QNetworkReply::NoError) {
+        QByteArray data = reply->readAll ();
+        QJsonParseError error;
+        QJsonDocument json = QJsonDocument::fromJson (data, &error);
+        if (!json.isNull () && json.isObject ()) {
+            QJsonObject obj = json.object ();
+            QJsonArray array = obj.value ("items").toArray ();
+            ///// ADD NEW ITEMS /////
+            m_database.transaction ();
+            foreach (QJsonValue value, array) {
+                QJsonObject item = value.toObject ();
+                QString content = jsonPathAsVariant (item, "content/content").toString ();
+                QString summary = jsonPathAsVariant (item, "summary/content").toString ();
+                QSqlQuery query (m_database);
+                query.prepare ("INSERT OR IGNORE INTO "
+                               "news (entryId, streamId, title, author, content, link, unread, published, updated, crawled) "
+                               "VALUES (:entryId, :streamId, :title, :author, :content, :link, :unread, :published, :updated, :crawled);");
+                query.bindValue (":entryId",   jsonPathAsVariant (item, "id").toString ());
+                query.bindValue (":streamId",  jsonPathAsVariant (item, "origin/streamId").toString ());
+                query.bindValue (":title",     jsonPathAsVariant (item, "title").toString ());
+                query.bindValue (":author",    jsonPathAsVariant (item, "author").toString ());
+                query.bindValue (":content",   (!content.isEmpty () ? content : summary));
+                query.bindValue (":link",      jsonPathAsVariant (item, "alternate/0/href").toString ());
+                query.bindValue (":unread",    jsonPathAsVariant (item, "unread").toBool ());
+                query.bindValue (":published", jsonPathAsVariant (item, "published").toReal ());
+                query.bindValue (":updated",   jsonPathAsVariant (item, "updated").toReal ());
+                query.bindValue (":crawled",   jsonPathAsVariant (item, "crawled").toReal ());
+                query.exec ();
+            }
+            m_database.commit ();
         }
-        m_database.commit ();
+        else {
+            qWarning () << "Failed to parse contents from JSON response :"
+                        << error.errorString ()
+                        << data;
+        }
+        getFeedInfo (reply->property("feedId").toString ())->set_status (MyFeed::Idle);
+        loadUnreadCounts ();
     }
     else {
-        qWarning () << "Failed to parse contents from JSON response :"
-                    << error.errorString ()
-                    << data;
+        qWarning () << "Network error on contents request :"
+                    << reply->errorString ();
     }
-    getFeedInfo (reply->property("feedId").toString ())->set_status (MyFeed::Idle);
-    loadUnreadCounts ();
     if (!m_pollQueue.isEmpty ()) {
         m_timer->start (100); // do next quickly
     }
@@ -605,17 +627,25 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
     qDebug () << "onRequestReadOperationsReply";
     QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
     Q_ASSERT (reply);
-    QByteArray data = reply->readAll ();
-    qDebug () << "data=\n" << data;
-    QJsonParseError error;
-    QJsonDocument json = QJsonDocument::fromJson (data, &error);
-    if (!json.isNull () && json.isObject ()) {
+    if (reply->error () == QNetworkReply::NoError) {
+        QByteArray data = reply->readAll ();
+        qDebug () << "data=\n" << data;
+        QJsonParseError error;
+        QJsonDocument json = QJsonDocument::fromJson (data, &error);
+        if (!json.isNull () && json.isObject ()) {
 
+            // TODO : mark locally entries as read according to timestamps and streamId
+
+        }
+        else {
+            qWarning () << "Failed to parse contents from JSON response :"
+                        << error.errorString ()
+                        << data;
+        }
     }
     else {
-        qWarning () << "Failed to parse contents from JSON response :"
-                    << error.errorString ()
-                    << data;
+        qWarning () << "Network error on read operations request :"
+                    << reply->errorString ();
     }
 }
 
@@ -626,7 +656,6 @@ void MyFeedlyApi::loadSubscriptions () {
     QString sql ("SELECT * FROM categories,feeds "
                  "WHERE feeds.categoryId=categories.categoryId ORDER BY label,title ASC;");
     QVariantList ret;
-    QString lastCategoryId;
     if (query.exec (sql)) {
         QSqlRecord record = query.record ();
         int fieldCategoryId    = record.indexOf ("categoryId");
@@ -634,7 +663,6 @@ void MyFeedlyApi::loadSubscriptions () {
         int fieldFeedId        = record.indexOf ("feedId");
         int fieldFeedTitle     = record.indexOf ("title");
         int fieldFeedWebsite   = record.indexOf ("website");
-        //int fieldFeedUpdated   = record.indexOf ("updated");
         while (query.next ()) {
             QString feedId     = query.value (fieldFeedId).toString ();
             QString categoryId = query.value (fieldCategoryId).toString ();
@@ -659,7 +687,6 @@ void MyFeedlyApi::loadSubscriptions () {
                     << query.lastError ().text ();
     }
     set_subscriptionsList (ret);
-    //refreshAll ();
 }
 
 void MyFeedlyApi::loadUnreadCounts () {
