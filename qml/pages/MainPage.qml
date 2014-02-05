@@ -181,7 +181,7 @@ Page {
         delegate: ListItem {
             id: itemFeed;
             height: (visible ? (menuOpen ? _menuItem.height + contentHeight : contentHeight) : 0);
-            visible: (feedInfo.categoryId === currentCategory);
+            visible: (model ['categoryId'] === currentCategory);
             menu: Component {
                 ContextMenu {
                     MenuItem {
