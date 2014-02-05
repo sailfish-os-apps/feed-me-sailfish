@@ -5,13 +5,15 @@
 
 #define CRLF "\r\n"
 
-#define streamIdAll    QString ("user/-/category/global.all")
-#define streamIdMarked QString ("user/-/tag/global.saved")
+#define streamIdAll           QString ("user/-/category/global.all")
+#define streamIdMarked        QString ("user/-/tag/global.saved")
+#define streamIdUncategorized QString ("user/-/category/global.uncategorized")
 
-QVariant jsonPathAsVariant (QJsonValue json, QString path) {
-    QVariant ret;
+QVariant jsonPathAsVariant (QJsonValue json, QString path, QVariant fallback = QVariant ()) {
+    QVariant ret = fallback;
     QJsonValue tmp = json;
     QStringList list = path.split ('/');
+    bool error = false;
     foreach (QString key, list) {
         bool isNumber;
         int nb = key.toInt (&isNumber, 10);
@@ -20,15 +22,23 @@ QVariant jsonPathAsVariant (QJsonValue json, QString path) {
             if (array.count () > nb) {
                 tmp = array.at (nb);
             }
+            else {
+                error = true;
+                break;
+            }
         }
         else {
             QJsonObject obj = tmp.toObject ();
             if (obj.contains (key)) {
                 tmp = obj.value (key);
             }
+            else {
+                error = true;
+                break;
+            }
         }
     }
-    if (!tmp.isNull ()) {
+    if (!tmp.isNull () && !error) {
         ret.setValue (tmp.toVariant ());
     }
     return ret;
@@ -99,6 +109,9 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     MyCategory * categoryMarked = getCategoryInfo (streamIdMarked);
     categoryMarked->set_label (tr ("Marked items"));
     categoryMarked->set_counter (0);
+    MyCategory * categoryUncategorized = getCategoryInfo (streamIdUncategorized);
+    categoryUncategorized->set_label (tr ("Uncategorized feeds"));
+    categoryUncategorized->set_counter (0);
     if (getIsLogged ()) {
         loadSubscriptions ();
         loadUnreadCounts  ();
@@ -546,6 +559,7 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
     Q_ASSERT (reply);
     if (reply->error () == QNetworkReply::NoError) {
         QByteArray data = reply->readAll ();
+        qDebug () << data;
         QJsonParseError error;
         QJsonDocument json = QJsonDocument::fromJson (data, &error);
         if (!json.isNull () && json.isArray ()) {
@@ -555,11 +569,12 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
             m_database.transaction ();
             foreach (QJsonValue value, array) {
                 QJsonObject item = value.toObject ();
+                QString feedId = jsonPathAsVariant (item, "id", "").toString ();
                 QSqlQuery query (m_database);
                 query.prepare ("INSERT OR IGNORE INTO feeds (feedId) VALUES (:feedId);");
-                query.bindValue (":feedId", jsonPathAsVariant (item, "id").toString ());
+                query.bindValue (":feedId", feedId);
                 query.exec ();
-                feeds << jsonPathAsVariant (item, "id").toString ();
+                feeds << feedId;
             }
             m_database.commit ();
             ///// UPDATE ALL ITEMS /////
@@ -570,11 +585,11 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
                 query.prepare ("UPDATE feeds "
                                "SET title=:title, website=:website, updated=:updated, categoryId=:categoryId "
                                "WHERE feedId=:feedId;");
-                query.bindValue (":title",      jsonPathAsVariant (item, "title").toString ());
-                query.bindValue (":website",    jsonPathAsVariant (item, "website").toString ());
-                query.bindValue (":updated",    jsonPathAsVariant (item, "updated").toReal ());
-                query.bindValue (":categoryId", jsonPathAsVariant (item, "categories/0/id").toString ());
-                query.bindValue (":feedId",     jsonPathAsVariant (item, "id").toString ());
+                query.bindValue (":title",      jsonPathAsVariant (item, "title", "").toString ());
+                query.bindValue (":website",    jsonPathAsVariant (item, "website", "").toString ());
+                query.bindValue (":updated",    jsonPathAsVariant (item, "updated", 0).toReal ());
+                query.bindValue (":categoryId", jsonPathAsVariant (item, "categories/0/id", "").toString ());
+                query.bindValue (":feedId",     jsonPathAsVariant (item, "id", "").toString ());
                 query.exec ();
             }
             m_database.commit ();
@@ -582,7 +597,7 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
             m_database.transaction ();
             QSqlQuery query (m_database);
             query.prepare (QString ("DELETE FROM feeds "
-                                    "WHERE feeds NOT IN (\"%1\");").arg (feeds.join ("\", \"")));
+                                    "WHERE feedId NOT IN (\"%1\");").arg (feeds.join ("\", \"")));
             query.exec ();
             m_database.commit ();
             qDebug () << "feeds=" << feeds;
@@ -616,24 +631,24 @@ void MyFeedlyApi::onRequestContentsReply () {
             m_database.transaction ();
             foreach (QJsonValue value, array) {
                 QJsonObject item = value.toObject ();
-                QString content   = jsonPathAsVariant (item, "content/content").toString ();
-                QString summary   = jsonPathAsVariant (item, "summary/content").toString ();
-                QString thumbnail = jsonPathAsVariant (item, "visual/url").toString ();
+                QString content   = jsonPathAsVariant (item, "content/content", "").toString ();
+                QString summary   = jsonPathAsVariant (item, "summary/content", "").toString ();
+                QString thumbnail = jsonPathAsVariant (item, "visual/url", "").toString ();
                 QSqlQuery query (m_database);
                 query.prepare ("INSERT OR IGNORE INTO "
                                "news (entryId, streamId, title, author, content, link, thumbnail, unread, published, updated, crawled) "
                                "VALUES (:entryId, :streamId, :title, :author, :content, :link, :thumbnail, :unread, :published, :updated, :crawled);");
-                query.bindValue (":entryId",   jsonPathAsVariant (item, "id").toString ());
-                query.bindValue (":streamId",  jsonPathAsVariant (item, "origin/streamId").toString ());
-                query.bindValue (":title",     jsonPathAsVariant (item, "title").toString ().trimmed ());
-                query.bindValue (":author",    jsonPathAsVariant (item, "author").toString ().trimmed ());
+                query.bindValue (":entryId",   jsonPathAsVariant (item, "id", "").toString ());
+                query.bindValue (":streamId",  jsonPathAsVariant (item, "origin/streamId", "").toString ());
+                query.bindValue (":title",     jsonPathAsVariant (item, "title", "").toString ().trimmed ());
+                query.bindValue (":author",    jsonPathAsVariant (item, "author", "").toString ().trimmed ());
                 query.bindValue (":content",   (!content.isEmpty () ? content : summary));
-                query.bindValue (":link",      jsonPathAsVariant (item, "alternate/0/href").toString ().trimmed ());
+                query.bindValue (":link",      jsonPathAsVariant (item, "alternate/0/href", "").toString ().trimmed ());
                 query.bindValue (":thumbnail", (thumbnail != "none" ? thumbnail : ""));
-                query.bindValue (":unread",    jsonPathAsVariant (item, "unread").toBool ());
-                query.bindValue (":published", jsonPathAsVariant (item, "published").toReal ());
-                query.bindValue (":updated",   jsonPathAsVariant (item, "updated").toReal ());
-                query.bindValue (":crawled",   jsonPathAsVariant (item, "crawled").toReal ());
+                query.bindValue (":unread",    jsonPathAsVariant (item, "unread", true).toBool ());
+                query.bindValue (":published", jsonPathAsVariant (item, "published", 0).toReal ());
+                query.bindValue (":updated",   jsonPathAsVariant (item, "updated", 0).toReal ());
+                query.bindValue (":crawled",   jsonPathAsVariant (item, "crawled", 0).toReal ());
                 query.exec ();
             }
             m_database.commit ();
@@ -688,10 +703,12 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
 /******************************* FROM DB *****************************************/
 
 void MyFeedlyApi::loadSubscriptions () {
-    QSqlQuery query (m_database);
-    QString sql ("SELECT * FROM categories,feeds "
-                 "WHERE feeds.categoryId=categories.categoryId ORDER BY label,title ASC;");
     QVariantList ret;
+    QSqlQuery query (m_database);
+    QString sql ("SELECT feeds.*,categories.label "
+                 "FROM feeds "
+                 "LEFT JOIN categories ON feeds.categoryId=categories.categoryId "
+                 "ORDER BY label,title ASC;");
     if (query.exec (sql)) {
         QSqlRecord record = query.record ();
         int fieldCategoryId    = record.indexOf ("categoryId");
@@ -704,13 +721,15 @@ void MyFeedlyApi::loadSubscriptions () {
             QString categoryId = query.value (fieldCategoryId).toString ();
             ///// MODEL ENTRY /////
             QVariantMap entry;
-            entry.insert ("categoryId", categoryId);
+            entry.insert ("categoryId", (!categoryId.isEmpty () ? categoryId : streamIdUncategorized));
             entry.insert ("feedId",     feedId);
             ret << entry;
             qDebug () << ">>>" << entry;
             ///// CATEGORY INFO /////
-            MyCategory * category = getCategoryInfo (categoryId);
-            category->set_label (query.value (fieldCategoryLabel).toString ());
+            if (!categoryId.isEmpty ()) {
+                MyCategory * category = getCategoryInfo (categoryId);
+                category->set_label (query.value (fieldCategoryLabel).toString ());
+            }
             ///// FEED INFO /////
             MyFeed * feed = getFeedInfo (feedId);
             feed->set_categoryId (categoryId);
@@ -765,6 +784,9 @@ void MyFeedlyApi::loadUnreadCounts () {
         int fieldCategoryId  = record.indexOf ("categoryId");
         while (queryCategories.next ()) {
             QString categoryId  = queryCategories.value (fieldCategoryId).toString ();
+            if (categoryId.isEmpty ()) {
+                categoryId = streamIdUncategorized;
+            }
             int unreadCount = queryCategories.value (fieldUnreadCount).toInt ();
             MyCategory * category = getCategoryInfo (categoryId);
             category->set_counter (unreadCount);
