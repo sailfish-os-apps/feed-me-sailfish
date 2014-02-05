@@ -822,6 +822,12 @@ void MyFeedlyApi::refreshStreamModel () {
         clauseFrom   = " FROM news ";
         clauseWhere.append (" news.marked=1 ");
     }
+    else if (m_currentStreamId.endsWith ("/category/global.uncategorized")){
+        clauseSelect = " SELECT news.*,feeds.categoryId,feeds.feedId ";
+        clauseFrom   = " FROM news,feeds ";
+        clauseWhere.append (" news.streamId=feeds.feedId ");
+        clauseWhere.append (" feeds.categoryId='' ");
+    }
     else if (m_currentStreamId.contains ("/category/")) {
         clauseSelect = " SELECT news.*,feeds.categoryId,feeds.feedId";
         clauseFrom   = " FROM news,feeds ";
