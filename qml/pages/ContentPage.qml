@@ -91,17 +91,18 @@ Page {
             id: pulley;
 
             MenuItem {
-                text: qsTr ("Share...");
+                text: qsTr ("Share... [TODO]");
                 font.family: Theme.fontFamilyHeading;
-                enabled: false; // TODO : when Jolla publish Sharing API
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
-                onClicked: { }
+                onClicked: {
+                    // TODO : when Jolla publish Sharing API
+                }
             }
             MenuItem {
-                text: qsTr ("Mark for later");
+                text: qsTr ("Mark for later [TODO]");
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;

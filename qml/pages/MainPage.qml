@@ -185,7 +185,7 @@ Page {
             menu: Component {
                 ContextMenu {
                     MenuItem {
-                        text: qsTr ("Unsubscribe this feed");
+                        text: qsTr ("Unsubscribe this feed [TODO]");
                         onClicked: {
                             remorseUnsubscribe.execute (itemFeed,
                                                         qsTr ("Removing feed"),
@@ -193,6 +193,12 @@ Page {
                                                             // TODO : remove feed and unsubscribe
                                                         },
                                                         5000);
+                        }
+                    }
+                    MenuItem {
+                        text: qsTr ("Force refresh this feed [TODO]");
+                        onClicked: {
+                            // TODO : add only this feed to queue and start poller
                         }
                     }
                 }
@@ -264,7 +270,7 @@ Page {
             id: pulley;
 
             MenuItem {
-                text: qsTr ("Logout account");
+                text: qsTr ("Logout account [TODO]");
                 font.family: Theme.fontFamilyHeading;
                 enabled: !Feedly.isOffline;
                 anchors {
@@ -280,7 +286,7 @@ Page {
                 }
             }
             MenuItem {
-                text: qsTr ("Add new feed...");
+                text: qsTr ("Add new feed... [TODO]");
                 font.family: Theme.fontFamilyHeading;
                 enabled: !Feedly.isOffline;
                 anchors {

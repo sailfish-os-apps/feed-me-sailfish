@@ -136,18 +136,18 @@ Page {
                 onClicked: { Feedly.showOnlyUnread = !Feedly.showOnlyUnread; }
             }
             MenuItem {
-                text: qsTr ("Check for newer items...");
+                text: qsTr ("Check for newer items... [TODO]");
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
                 onClicked: {
-
+                    // TODO : load the items that were cached since stream was opened, and maybe pull new ones before
                 }
             }
             MenuItem {
-                text: qsTr ("Mark all as read");
+                text: qsTr ("Mark all as read [TODO]");
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
@@ -166,7 +166,7 @@ Page {
             id: pulleyUp;
 
             MenuItem {
-                text: qsTr ("Mark all as read");
+                text: qsTr ("Mark all as read [TODO]");
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
@@ -181,7 +181,7 @@ Page {
                 }
             }
             MenuItem {
-                text: qsTr ("Load older items...");
+                text: qsTr ("Load older items... [TODO]");
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
