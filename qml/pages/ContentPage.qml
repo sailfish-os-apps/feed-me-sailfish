@@ -82,9 +82,16 @@ Page {
 
     SilicaFlickable {
         id: view;
+        clip: true;
         contentWidth: width;
         contentHeight: (layout.height + layout.anchors.margins * 2);
-        anchors.fill: parent;
+        anchors {
+            top: parent.top;
+            left: parent.left;
+            right: parent.right;
+            bottom: parent.bottom;
+            bottomMargin: (panelStatus.expanded ? panelStatus.height : 0);
+        }
 
         PullDownMenu {
             id: pulley;

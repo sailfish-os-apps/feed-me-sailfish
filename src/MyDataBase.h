@@ -1,6 +1,15 @@
 #ifndef MYDATABASE_H
 #define MYDATABASE_H
 
+#ifdef QT_QML_DEBUG
+#include <QtQuick>
+#endif
+
+#include <QQuickView>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QGuiApplication>
+#include <qqml.h>
 #include <QObject>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -8,6 +17,7 @@
 #include <QSqlError>
 #include <QSqlRecord>
 #include <QDir>
+#include <QUrl>
 #include <QHash>
 #include <QQmlPropertyMap>
 #include <QStringList>
@@ -46,6 +56,16 @@
 #define apiRedirectUri   QString ("http://localhost")
 #define apiAuthScope     QString ("https://cloud.feedly.com/subscriptions")
 
+// TODO : put pagination in settings ?
+#define PageSize              250
+
+#define CRLF                  QString ("\r\n")
+#define CURR_MSECS            QDateTime::currentMSecsSinceEpoch ()
+
+#define streamIdAll           QString ("user/-/category/global.all")
+#define streamIdMarked        QString ("user/-/tag/global.saved")
+#define streamIdUncategorized QString ("user/-/category/global.uncategorized")
+
 #define QML_PUBLIC_PROPERTY(type, name) \
     protected: \
         Q_PROPERTY (type name READ get_##name WRITE set_##name NOTIFY name##Changed) \
@@ -68,6 +88,26 @@
     Q_SIGNALS: \
         void name##Changed (type name);
 
+#define QML_SETTINGS_PROPERTY(type, name) \
+    protected: \
+        Q_PROPERTY (type name READ get_##name WRITE set_##name NOTIFY name##Changed) \
+    public: \
+        type get_##name () const { \
+            return  m_settings->value (#name).value<type> (); \
+        } \
+    public Q_SLOTS: \
+        bool set_##name (type name) { \
+            bool ret = false; \
+            if (!m_settings->contains (#name) || m_settings->value (#name).value<type> () != name) { \
+                m_settings->setValue (#name, name); \
+                ret = true; \
+                emit name##Changed (name); \
+            } \
+            return ret; \
+        } \
+    Q_SIGNALS: \
+        void name##Changed (type name);
+
 #define QML_READONLY_PROPERTY(type, name) \
     protected: \
         Q_PROPERTY (type name READ get_##name CONSTANT) \
@@ -78,6 +118,28 @@
             return m_##name ; \
         }
 
+class VariantModel : public QAbstractListModel {
+    Q_OBJECT
+
+public:
+    explicit VariantModel (QStringList roles, QObject * parent = NULL);
+
+public:
+    int count () const;
+    void append  (QVariantMap item);
+    void prepend (QVariantMap item);
+    void deleteAll ();
+    QVariantMap valueAt (int idx) const;
+
+    // QAbstractItemModel interface
+    int rowCount (const QModelIndex & parent = QModelIndex ()) const;
+    virtual QVariant data (const QModelIndex & index, int role = Qt::DisplayRole) const;
+    QHash<int, QByteArray> roleNames () const;
+
+private:
+    QList<QVariantMap>     m_items;
+    QHash<int, QByteArray> m_roles;
+};
 
 class MyCategory : public QObject {
     Q_OBJECT
@@ -151,23 +213,36 @@ class MyFeedlyApi : public QObject {
     Q_OBJECT
     QML_PUBLIC_PROPERTY   (QString,           currentStreamId)
     QML_PUBLIC_PROPERTY   (QString,           currentEntryId)
-    QML_PUBLIC_PROPERTY   (QVariantList,      subscriptionsList)
-    QML_PUBLIC_PROPERTY   (QVariantList,      newsStreamList)
+    QML_PUBLIC_PROPERTY   (QString,           currentStatusMsg)
+    QML_PUBLIC_PROPERTY   (qint64,            streamMostRecentMSecs)
     QML_PUBLIC_PROPERTY   (bool,              isPolling)
+    QML_PUBLIC_PROPERTY   (int,               currentPageCount)
     QML_READONLY_PROPERTY (int,               port)
-    Q_PROPERTY (QString apiCode         READ getApiCode         WRITE setApiCode         NOTIFY apiCodeChanged)
-    Q_PROPERTY (QString apiUserId       READ getApiUserId       WRITE setApiUserId       NOTIFY apiUserIdChanged)
-    Q_PROPERTY (QString apiAccessToken  READ getApiAccessToken  WRITE setApiAccessToken  NOTIFY apiAccessTokenChanged)
-    Q_PROPERTY (QString apiRefreshToken READ getApiRefreshToken WRITE setApiRefreshToken NOTIFY apiRefreshTokenChanged)
-    Q_PROPERTY (bool    showOnlyUnread  READ getShowOnlyUnread  WRITE setShowOnlyUnread  NOTIFY showOnlyUnreadChanged)
-    Q_PROPERTY (bool    isLogged        READ getIsLogged        WRITE setIsLogged        NOTIFY isLoggedChanged)
-    Q_PROPERTY (bool    isOffline       READ getIsOffline       WRITE setIsOffline       NOTIFY isOfflineChanged)
+    QML_READONLY_PROPERTY (int,               pageSize)
+    QML_READONLY_PROPERTY (VariantModel *,    subscriptionsList)
+    QML_READONLY_PROPERTY (VariantModel *,    newsStreamList)
+    QML_SETTINGS_PROPERTY (QString,           apiCode)
+    QML_SETTINGS_PROPERTY (QString,           apiUserId)
+    QML_SETTINGS_PROPERTY (QString,           apiAccessToken)
+    QML_SETTINGS_PROPERTY (QString,           apiRefreshToken)
+    QML_SETTINGS_PROPERTY (qint64,            lastStart)
+    QML_SETTINGS_PROPERTY (qint64,            lastPullMSecs)
+    QML_SETTINGS_PROPERTY (bool,              showOnlyUnread)
+    QML_SETTINGS_PROPERTY (bool,              isLogged)
+    QML_SETTINGS_PROPERTY (bool,              isOffline)
 
 public: // oop
     explicit MyFeedlyApi (QObject * parent = NULL);
     virtual ~MyFeedlyApi ();
 
 public: // methods
+    Q_INVOKABLE void         refreshAll              ();
+    Q_INVOKABLE void         refreshStream           (QString streamId);
+    Q_INVOKABLE void         markItemAsRead          (QString entryId);
+    Q_INVOKABLE void         markCurrentStreamAsRead ();
+    Q_INVOKABLE void         logoutAndSweepAll       ();
+
+public: // getters
     Q_INVOKABLE MyFeed     * getFeedInfo             (QString feedId);
     Q_INVOKABLE MyCategory * getCategoryInfo         (QString categoryId);
     Q_INVOKABLE MyContent  * getContentInfo          (QString entryId);
@@ -175,36 +250,9 @@ public: // methods
     Q_INVOKABLE QString      getStreamIdAll          ();
     Q_INVOKABLE QString      getStreamIdMarked       ();
 
-    Q_INVOKABLE void         refreshAll              ();
-    Q_INVOKABLE void         markItemAsRead          (QString entryId);
-    Q_INVOKABLE void         markCurrentStreamAsRead ();
-
-public: // getters
-    bool    getIsLogged        () const { return m_settings->value ("isLogged",        "").toBool   (); }
-    bool    getIsOffline       () const { return m_settings->value ("isOffline",       "").toBool   (); }
-    QString getApiCode         () const { return m_settings->value ("apiCode",         "").toString (); }
-    QString getApiUserId       () const { return m_settings->value ("apiUserId",       "").toString (); }
-    QString getApiAccessToken  () const { return m_settings->value ("apiAccessToken",  "").toString (); }
-    QString getApiRefreshToken () const { return m_settings->value ("apiRefreshToken", "").toString (); }
-    bool    getShowOnlyUnread  () const { return m_settings->value ("showOnlyUnread",  "").toBool   (); }
-
 public: // setters
-    void setApiCode         (QString arg);
-    void setApiUserId       (QString arg);
-    void setApiAccessToken  (QString arg);
-    void setApiRefreshToken (QString arg);
-    void setShowOnlyUnread  (bool    arg);
-    void setIsLogged        (bool    arg);
-    void setIsOffline       (bool    arg);
 
 signals: // notifiers
-    void apiCodeChanged         (QString arg);
-    void apiUserIdChanged       (QString arg);
-    void apiAccessTokenChanged  (QString arg);
-    void apiRefreshTokenChanged (QString arg);
-    void showOnlyUnreadChanged  (bool    arg);
-    void isLoggedChanged        (bool    arg);
-    void isOfflineChanged       (bool    arg);
 
 signals: // events
     void dataReceived (QString data);
@@ -214,18 +262,20 @@ public slots: // methods
     void loadUnreadCounts  ();
 
 protected slots: // internal routines
-    void initializeTables      ();
-    void refreshStreamModel    ();
-    void requestTokens         ();
-    void requestCategories     ();
-    void requestSubscriptions  ();
-    void requestContents       ();
-    void requestReadOperations ();
-    void syncAllFlags          ();
+    void initializeTables        ();
+    void refreshStreamModel      ();
+    void requestTokens           ();
+    void requestCategories       ();
+    void requestSubscriptions    ();
+    void requestContents         ();
+    void requestReadOperations   ();
+    void syncAllFlags            ();
+    void pushLocalReadOperations ();
 
 private slots: // internal callbacks
     void onCurrentStreamIdChanged     (QString arg);
     void onShowOnlyUnreadChanged      (bool    arg);
+    void onCurrentPageCountChanged    (int     arg);
     void onIsOfflineChanged           (bool    arg);
     void onIncomingConnection         ();
     void onSockReadyRead              ();
@@ -234,6 +284,7 @@ private slots: // internal callbacks
     void onRequestSubscriptionsReply  ();
     void onRequestContentsReply       ();
     void onRequestReadOperationsReply ();
+    void onPushLocalOperationsReply   ();
 
 private: // members
     QSqlDatabase                 m_database;

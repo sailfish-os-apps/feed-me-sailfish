@@ -12,18 +12,18 @@ Page {
     }
     Connections {
         target: Feedly;
-        onNewsStreamListChanged: {
+        onCurrentStreamIdChanged: {
             view.positionViewAtBeginning ();
-            modelNewsStream.clear ();
-            modelNewsStream.append (Feedly.newsStreamList);
+        }
+        onShowOnlyUnreadChanged: {
+            view.positionViewAtBeginning ();
         }
     }
     SilicaListView {
         id: view;
+        clip: true;
         currentIndex: -1;
-        model: ListModel {
-            id: modelNewsStream;
-        }
+        model: Feedly.newsStreamList;
         header: Column {
             spacing: Theme.paddingSmall;
             anchors {
@@ -73,9 +73,9 @@ Page {
                 }
             }
         }
-        delegate: BackgroundItem {
+        delegate: ListItem {
             id: itemNews;
-            height: Theme.itemSizeMedium;
+            contentHeight: Theme.itemSizeMedium;
             anchors {
                 left: parent.left;
                 right: parent.right;
@@ -84,45 +84,55 @@ Page {
                 Feedly.currentEntryId = contentInfo.entryId;
                 pageStack.push (contentPage);
             }
+            ListView.onAdd: AddAnimation { target: itemNews; }
 
             property ContentInfo contentInfo : Feedly.getContentInfo (model ['entryId']);
 
-            GlassItem {
-                color: Theme.highlightColor;
-                visible: itemNews.contentInfo.unread;
-                anchors {
-                    horizontalCenter: parent.right;
-                    verticalCenter: parent.verticalCenter;
-                }
-            }
-            Image {
-                id: imgThumbnail;
-                source: (itemNews.contentInfo.thumbnail !== "" ? itemNews.contentInfo.thumbnail : "../img/noimage.png");
-                fillMode: Image.PreserveAspectCrop;
-                asynchronous: true;
-                cache: true;
-                width: height;
+            Item {
+                height: itemNews.contentHeight;
                 anchors {
                     top: parent.top;
                     left: parent.left;
-                    bottom: parent.bottom;
-                }
-            }
-            Text {
-                text: itemNews.contentInfo.title;
-                textFormat: Text.PlainText;
-                wrapMode: Text.WrapAtWordBoundaryOrAnywhere;
-                maximumLineCount: 2;
-                font.pixelSize: Theme.fontSizeSmall;
-                font.family: Theme.fontFamilyHeading;
-                elide: Text.ElideRight;
-                color: Theme.primaryColor;
-                anchors {
-                    left: imgThumbnail.right;
                     right: parent.right;
-                    leftMargin: Theme.paddingSmall;
-                    rightMargin: Theme.paddingLarge;
-                    verticalCenter: parent.verticalCenter;
+                }
+
+                GlassItem {
+                    color: Theme.highlightColor;
+                    visible: itemNews.contentInfo.unread;
+                    anchors {
+                        horizontalCenter: parent.right;
+                        verticalCenter: parent.verticalCenter;
+                    }
+                }
+                Image {
+                    id: imgThumbnail;
+                    source: (itemNews.contentInfo.thumbnail !== "" ? itemNews.contentInfo.thumbnail : "../img/noimage.png");
+                    fillMode: Image.PreserveAspectCrop;
+                    asynchronous: true;
+                    cache: true;
+                    width: height;
+                    anchors {
+                        top: parent.top;
+                        left: parent.left;
+                        bottom: parent.bottom;
+                    }
+                }
+                Text {
+                    text: itemNews.contentInfo.title;
+                    textFormat: Text.PlainText;
+                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere;
+                    maximumLineCount: 2;
+                    font.pixelSize: Theme.fontSizeSmall;
+                    font.family: Theme.fontFamilyHeading;
+                    elide: Text.ElideRight;
+                    color: Theme.primaryColor;
+                    anchors {
+                        left: imgThumbnail.right;
+                        right: parent.right;
+                        leftMargin: Theme.paddingMedium;
+                        rightMargin: Theme.paddingMedium;
+                        verticalCenter: parent.verticalCenter;
+                    }
                 }
             }
         }
@@ -134,7 +144,13 @@ Page {
                 margins: 0;
             }
         }
-        anchors.fill: parent;
+        anchors {
+            top: parent.top;
+            left: parent.left;
+            right: parent.right;
+            bottom: parent.bottom;
+            bottomMargin: (panelStatus.expanded ? panelStatus.height : 0);
+        }
 
         PullDownMenu {
             id: pulley;
@@ -150,14 +166,16 @@ Page {
                 onClicked: { Feedly.showOnlyUnread = !Feedly.showOnlyUnread; }
             }
             MenuItem {
-                text: qsTr ("Check for newer items... [TODO]");
+                text: qsTr ("Check for newer items...");
+                enabled: !Feedly.isOffline;
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
                 onClicked: {
-                    // TODO : load the items that were cached since stream was opened, and maybe pull new ones before
+                    Feedly.refreshStream (Feedly.currentStreamId);
+                    // TODO : still missing logic to compute 'X new items to show' diff count !
                 }
             }
             MenuItem {
@@ -195,18 +213,40 @@ Page {
                 }
             }
             MenuItem {
-                text: qsTr ("Load older items... [TODO]");
+                text: qsTr ("Load %1 older items...").arg (Feedly.pageSize);
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
                     right: parent.right;
                 }
-                onClicked: {
-                    // TODO : logic to load older items
-                }
+                onClicked: { delayLoadMore.start (); }
             }
         }
         VerticalScrollDecorator { }
+    }
+    Timer {
+        id: delayLoadMore;
+        interval: 500;
+        running: false;
+        repeat: false;
+        onTriggered: {
+            pulleyUp.active = false;
+            var save = view.contentY;
+            Feedly.currentPageCount++;
+            view.contentY = save;
+        }
+    }
+    OpacityRampEffect {
+        sourceItem: view;
+        enabled: (!view.atYEnd);
+        direction: OpacityRamp.TopToBottom;
+        offset: 0.65;
+        slope: 1.35;
+        anchors.fill: view;
+    }
+    ViewPlaceholder {
+        text: qsTr ("No news in this stream.");
+        enabled: (view.count == 0);
     }
     Button {
         id: btnBackToTop;

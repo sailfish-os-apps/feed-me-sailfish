@@ -7,26 +7,17 @@ Page {
     id: page;
     allowedOrientations: (Orientation.Portrait | Orientation.Landscape);
 
+    readonly
+    property alias  viewItem        : view;
     property string currentCategory : "";
 
     RemorsePopup { id: remorseLogout; }
     RemorseItem { id: remorseUnsubscribe; }
-    Connections {
-        target: Feedly;
-        onSubscriptionsListChanged: {
-            view.positionViewAtBeginning ();
-            modelSubcriptions.clear ();
-            modelSubcriptions.append (Feedly.subscriptionsList);
-        }
-    }
     SilicaListView {
         id: view;
+        clip: true;
         currentIndex: -1;
-        model: ListModel {
-            id: modelSubcriptions;
-
-            Component.onCompleted: { append (Feedly.subscriptionsList); }
-        }
+        model: Feedly.subscriptionsList;
         header: Column {
             spacing: Theme.paddingSmall;
             anchors {
@@ -49,7 +40,7 @@ Page {
                     margins: Theme.paddingLarge;
                 }
             }
-            BackgroundItem {
+            ListItem {
                 id: itemAll;
                 onClicked: {
                     Feedly.currentStreamId = categoryAll.streamId;
@@ -81,7 +72,7 @@ Page {
                     }
                 }
             }
-            BackgroundItem {
+            ListItem {
                 id: itemStarred;
                 onClicked: {
                     Feedly.currentStreamId = categoryStarred.streamId;
@@ -124,8 +115,23 @@ Page {
         }
         section {
             property: "categoryId";
-            delegate: BackgroundItem {
+            delegate: ListItem {
                 id: itemCategory;
+                height: contentHeight + (menuOpen ? _menuItem.height : 0);
+//                menu: ContextMenu {
+//                    MenuItem {
+//                        text: qsTr ("Force refresh this category");
+//                        onClicked: {
+//                            Feedly.refreshStream (section);
+//                        }
+//                    }
+//                    MenuItem {
+//                        text: qsTr ("Edit this category [TODO]");
+//                        onClicked: {
+//                            // dialog to edit the category
+//                        }
+//                    }
+//                }
                 onClicked: {
                     Feedly.currentStreamId = categoryInfo.streamId;
                     pageStack.push (streamPage);
@@ -135,71 +141,78 @@ Page {
                 property bool         isCurrentSection : (currentCategory === section);
                 property CategoryInfo categoryInfo     : Feedly.getCategoryInfo (section);
 
-                MouseArea {
-                    id: clicker;
-                    width: height;
+                Item {
+                    height: itemCategory.contentHeight;
                     anchors {
                         top: parent.top;
                         left: parent.left;
-                        bottom: parent.bottom;
-                    }
-                    onClicked: { currentCategory = (!itemCategory.isCurrentSection ? section : ""); }
-
-                    Image {
-                        source: "../img/arrow-right.png";
-                        rotation: (itemCategory.isCurrentSection ? +90 : 0);
-                        anchors.centerIn: parent;
-
-                        Behavior on rotation { NumberAnimation { duration: 180; } }
-                    }
-                }
-                Label {
-                    text: itemCategory.categoryInfo.label;
-                    textFormat: Text.PlainText;
-                    truncationMode: TruncationMode.Fade;
-                    font.family: Theme.fontFamilyHeading;
-                    color: (itemCategory.isCurrentSection ? Theme.highlightColor : Theme.primaryColor);
-                    anchors {
-                        left: clicker.right;
-                        right: bubble.left;
-                        leftMargin: Theme.paddingSmall;
-                        rightMargin: Theme.paddingSmall;
-                        verticalCenter: parent.verticalCenter;
-                    }
-                }
-                Bubble {
-                    id: bubble;
-                    value: itemCategory.categoryInfo.counter;
-                    anchors {
                         right: parent.right;
-                        margins: Theme.paddingSmall;
-                        verticalCenter: parent.verticalCenter;
+                    }
+
+                    MouseArea {
+                        id: clicker;
+                        width: height;
+                        anchors {
+                            top: parent.top;
+                            left: parent.left;
+                            bottom: parent.bottom;
+                        }
+                        onClicked: { currentCategory = (!itemCategory.isCurrentSection ? section : ""); }
+
+                        Image {
+                            source: "../img/arrow-right.png";
+                            rotation: (itemCategory.isCurrentSection ? +90 : 0);
+                            anchors.centerIn: parent;
+
+                            Behavior on rotation { NumberAnimation { duration: 180; } }
+                        }
+                    }
+                    Label {
+                        text: (itemCategory.categoryInfo ? itemCategory.categoryInfo.label : "");
+                        textFormat: Text.PlainText;
+                        truncationMode: TruncationMode.Fade;
+                        font.family: Theme.fontFamilyHeading;
+                        color: (itemCategory.isCurrentSection ? Theme.highlightColor : Theme.primaryColor);
+                        anchors {
+                            left: clicker.right;
+                            right: bubble.left;
+                            leftMargin: Theme.paddingSmall;
+                            rightMargin: Theme.paddingSmall;
+                            verticalCenter: parent.verticalCenter;
+                        }
+                    }
+                    Bubble {
+                        id: bubble;
+                        value: (itemCategory.categoryInfo ? itemCategory.categoryInfo.counter : 0);
+                        anchors {
+                            right: parent.right;
+                            margins: Theme.paddingSmall;
+                            verticalCenter: parent.verticalCenter;
+                        }
                     }
                 }
             }
         }
         delegate: ListItem {
             id: itemFeed;
-            height: (visible ? (menuOpen ? _menuItem.height + contentHeight : contentHeight) : 0);
+            height: contentHeight + (menuOpen ? _menuItem.height : 0);
             visible: (model ['categoryId'] === currentCategory);
-            menu: Component {
-                ContextMenu {
-                    MenuItem {
-                        text: qsTr ("Unsubscribe this feed [TODO]");
-                        onClicked: {
-                            remorseUnsubscribe.execute (itemFeed,
-                                                        qsTr ("Removing feed"),
-                                                        function () {
-                                                            // TODO : remove feed and unsubscribe
-                                                        },
-                                                        5000);
-                        }
+            menu: ContextMenu {
+                MenuItem {
+                    text: qsTr ("Force refresh this feed");
+                    onClicked: {
+                        Feedly.refreshStream (model ['feedId']);
                     }
-                    MenuItem {
-                        text: qsTr ("Force refresh this feed [TODO]");
-                        onClicked: {
-                            // TODO : add only this feed to queue and start poller
-                        }
+                }
+                MenuItem {
+                    text: qsTr ("Unsubscribe this feed [TODO]");
+                    onClicked: {
+                        remorseUnsubscribe.execute (itemFeed,
+                                                    qsTr ("Removing feed"),
+                                                    function () {
+                                                        // TODO : remove feed and unsubscribe
+                                                    },
+                                                    5000);
                     }
                 }
             }
@@ -212,49 +225,58 @@ Page {
             property FeedInfo feedInfo : Feedly.getFeedInfo (model ['feedId']);
 
             Item {
-                id: holder;
-                width: height;
+                height: itemFeed.contentHeight;
                 anchors {
                     top: parent.top;
                     left: parent.left;
-                    bottom: parent.bottom;
+                    right: parent.right;
                 }
 
-                Image {
-                    id: symbolStatus;
-                    visible: (itemFeed.feedInfo.status !== FeedInfo.Idle);
-                    source: "../img/pending.png";
-                    anchors.centerIn: parent;
+                Item {
+                    id: holder;
+                    width: height;
+                    anchors {
+                        top: parent.top;
+                        left: parent.left;
+                        bottom: parent.bottom;
+                    }
+
+                    Image {
+                        id: symbolStatus;
+                        visible: (itemFeed.feedInfo && itemFeed.feedInfo.status !== FeedInfo.Idle);
+                        source: "../img/pending.png";
+                        anchors.centerIn: parent;
+                    }
+                    BusyIndicator {
+                        running: visible;
+                        visible: (itemFeed.feedInfo && itemFeed.feedInfo.status === FeedInfo.Fetching);
+                        size: BusyIndicatorSize.Medium;
+                        anchors.centerIn: parent;
+                    }
                 }
-                BusyIndicator {
-                    running: visible;
-                    visible: (itemFeed.feedInfo.status === FeedInfo.Fetching);
-                    size: BusyIndicatorSize.Medium;
-                    anchors.centerIn: parent;
+                Label {
+                    text: (itemFeed.feedInfo ? itemFeed.feedInfo.title : "");
+                    textFormat: Text.PlainText;
+                    truncationMode: TruncationMode.Fade;
+                    font.pixelSize: Theme.fontSizeSmall;
+                    font.family: Theme.fontFamilyHeading;
+                    color: Theme.primaryColor;
+                    anchors {
+                        left: holder.right;
+                        right: bubble.left;
+                        leftMargin: Theme.paddingSmall;
+                        rightMargin: Theme.paddingSmall;
+                        verticalCenter: parent.verticalCenter;
+                    }
                 }
-            }
-            Label {
-                text: itemFeed.feedInfo.title;
-                textFormat: Text.PlainText;
-                truncationMode: TruncationMode.Fade;
-                font.pixelSize: Theme.fontSizeSmall;
-                font.family: Theme.fontFamilyHeading;
-                color: Theme.primaryColor;
-                anchors {
-                    left: holder.right;
-                    right: bubble.left;
-                    leftMargin: Theme.paddingSmall;
-                    rightMargin: Theme.paddingSmall;
-                    verticalCenter: parent.verticalCenter;
-                }
-            }
-            Bubble {
-                id: bubble;
-                value: itemFeed.feedInfo.counter;
-                anchors {
-                    right: parent.right;
-                    margins: Theme.paddingSmall;
-                    verticalCenter: parent.verticalCenter;
+                Bubble {
+                    id: bubble;
+                    value: (itemFeed.feedInfo ? itemFeed.feedInfo.counter : 0);
+                    anchors {
+                        right: parent.right;
+                        margins: Theme.paddingSmall;
+                        verticalCenter: parent.verticalCenter;
+                    }
                 }
             }
         }
@@ -263,14 +285,14 @@ Page {
             left: parent.left;
             right: parent.right;
             bottom: parent.bottom;
-            bottomMargin: (panel.expanded ? panel.height : 0);
+            bottomMargin: (panelStatus.expanded ? panelStatus.height : 0);
         }
 
         PullDownMenu {
             id: pulley;
 
             MenuItem {
-                text: qsTr ("Logout account [TODO]");
+                text: qsTr ("Logout & sweep account");
                 font.family: Theme.fontFamilyHeading;
                 enabled: !Feedly.isOffline;
                 anchors {
@@ -278,9 +300,9 @@ Page {
                     right: parent.right;
                 }
                 onClicked: {
-                    remorseLogout.execute ("Login out",
+                    remorseLogout.execute ("Logging out, sweeping data...",
                                            function () {
-                                               // TODO : logout, delete cache, show login page
+                                               Feedly.logoutAndSweepAll ();
                                            },
                                            5000);
                 }
@@ -310,7 +332,7 @@ Page {
                 }
             }
             MenuItem {
-                text: qsTr ("Refresh all");
+                text: qsTr ("Refresh all cache (Slow)");
                 font.family: Theme.fontFamilyHeading;
                 enabled: !Feedly.isOffline;
                 anchors {
@@ -321,48 +343,20 @@ Page {
                     Feedly.refreshAll ();
                 }
             }
+            MenuItem {
+                text: qsTr ("Sync read statuses (Fast)");
+                font.family: Theme.fontFamilyHeading;
+                enabled: !Feedly.isOffline;
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                }
+                onClicked: {
+                    Feedly.syncAllFlags ();
+                }
+            }
         }
         VerticalScrollDecorator {}
-    }
-    DockedPanel {
-        id: panel;
-        dock: Dock.Bottom;
-        open: Feedly.isPolling;
-        height: (indicatorPolling.height + indicatorPolling.anchors.margins * 2);
-        anchors {
-            left: parent.left;
-            right: parent.right;
-        }
-
-        Rectangle {
-            color: "white";
-            opacity: 0.05;
-            anchors.fill: parent;
-        }
-        BusyIndicator {
-            id: indicatorPolling;
-            running: Feedly.isPolling;
-            visible: running;
-            size: BusyIndicatorSize.Medium;
-            anchors {
-                left: parent.left;
-                margins: Theme.paddingMedium;
-                verticalCenter: parent.verticalCenter;
-            }
-        }
-        Label {
-            text: qsTr ("Refreshing feeds...");
-            textFormat: Text.PlainText;
-            font.pixelSize: Theme.fontSizeSmall;
-            font.family: Theme.fontFamilyHeading;
-            color: Theme.secondaryColor;
-            anchors {
-                left: indicatorPolling.right;
-                right: parent.right;
-                margins: Theme.paddingLarge;
-                verticalCenter: parent.verticalCenter;
-            }
-        }
     }
     OpacityRampEffect {
         sourceItem: view;
@@ -370,8 +364,6 @@ Page {
         direction: OpacityRamp.TopToBottom;
         offset: 0.65;
         slope: 1.35;
-        width: view.width;
-        height: view.height;
         anchors.fill: view;
     }
     Button {
@@ -385,15 +377,6 @@ Page {
             margins: 0;
         }
         onClicked: { view.scrollToTop (); }
-    }
-    Loader {
-        active: !Feedly.isLogged;
-        asynchronous: true;
-        sourceComponent: SilicaWebView {
-            id: webView;
-            url: Feedly.getOAuthPageUrl ();
-        }
-        anchors.fill: parent;
     }
 }
 

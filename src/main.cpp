@@ -1,14 +1,4 @@
 
-#ifdef QT_QML_DEBUG
-#include <QtQuick>
-#endif
-
-#include <QQuickView>
-#include <QQmlContext>
-#include <QQmlEngine>
-#include <QGuiApplication>
-#include <qqml.h>
-
 #include <sailfishapp.h>
 
 #include "MyDataBase.h"
@@ -18,6 +8,7 @@ int main (int argc, char * argv []){
     qmlRegisterUncreatableType <QAbstractItemModel>  ("harbour.feedme.myQtCoreImports", 5, 1, "AbstractItemModel", "");
     qmlRegisterUncreatableType <QAbstractProxyModel> ("harbour.feedme.myQtCoreImports", 5, 1, "AbstractProxyMode", "");
     qmlRegisterUncreatableType <QQmlPropertyMap>     ("harbour.feedme.myQtCoreImports", 5, 1, "QmlPropertyMap", "");
+    qmlRegisterUncreatableType <VariantModel>        ("harbour.feedme.myQtCoreImports", 5, 1, "VariantModel", "");
     qmlRegisterUncreatableType <MyFeedlyApi>         ("harbour.feedme.myQtCoreImports", 5, 1, "FeedlyApi", "");
     qmlRegisterType            <MyCategory>          ("harbour.feedme.myQtCoreImports", 5, 1, "CategoryInfo");
     qmlRegisterType            <MyFeed>              ("harbour.feedme.myQtCoreImports", 5, 1, "FeedInfo");

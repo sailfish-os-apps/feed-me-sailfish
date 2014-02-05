@@ -19,55 +19,61 @@ ApplicationWindow {
     ContentPage {
         id: contentPage;
     }
+    DockedPanel {
+        id: panelStatus;
+        dock: Dock.Bottom;
+        open: Feedly.isPolling;
+        height: (indicatorPolling.height + indicatorPolling.anchors.margins * 2);
+        anchors {
+            left: parent.left;
+            right: parent.right;
+        }
 
+        Rectangle {
+            color: "white";
+            opacity: 0.05;
+            anchors.fill: parent;
+        }
+        BusyIndicator {
+            id: indicatorPolling;
+            running: Feedly.isPolling;
+            visible: running;
+            size: BusyIndicatorSize.Medium;
+            anchors {
+                left: parent.left;
+                margins: Theme.paddingMedium;
+                verticalCenter: parent.verticalCenter;
+            }
+        }
+        Label {
+            text: Feedly.currentStatusMsg;
+            textFormat: Text.PlainText;
+            font.pixelSize: Theme.fontSizeSmall;
+            font.family: Theme.fontFamilyHeading;
+            color: Theme.secondaryColor;
+            anchors {
+                left: indicatorPolling.right;
+                right: parent.right;
+                margins: Theme.paddingLarge;
+                verticalCenter: parent.verticalCenter;
+            }
+        }
+    }
+    Loader {
+        active: !Feedly.isLogged;
+        asynchronous: true;
+        sourceComponent: SilicaWebView {
+            id: webView;
+            url: Feedly.getOAuthPageUrl ();
+            experimental {
+                transparentBackground: true;
+            }
+        }
+        anchors.fill: parent;
+    }
     Formatter {
         id: formatter;
     }
-    ListModel {
-        id: modelSubscriptions;
-
-        ListElement {
-            title: "Clubic";
-            category: "Actus IT";
-            count: 23;
-        }
-        ListElement {
-            title: "01.net";
-            category: "Actus IT";
-            count: 12;
-        }
-        ListElement {
-            title: "Engadget";
-            category: "Actus IT";
-            count: 127;
-        }
-        ListElement {
-            title: "BlogGeek";
-            category: "Actus IT";
-            count: 0;
-        }
-        ListElement {
-            title: "Phoronix";
-            category: "Actus IT";
-            count: 9;
-        }
-        ListElement {
-            title: "Qt Blog by Digia";
-            category: "Qt / QML";
-            count: 4;
-        }
-        ListElement {
-            title: "Qt Planet";
-            category: "Qt / QML";
-            count: 6;
-        }
-        ListElement {
-            title: "The KDE blog";
-            category: "Qt / QML";
-            count: 3;
-        }
-    }
-
 }
 
 

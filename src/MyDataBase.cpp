@@ -3,12 +3,6 @@
 
 #include <QDebug>
 
-#define CRLF "\r\n"
-
-#define streamIdAll           QString ("user/-/category/global.all")
-#define streamIdMarked        QString ("user/-/tag/global.saved")
-#define streamIdUncategorized QString ("user/-/category/global.uncategorized")
-
 QVariant jsonPathAsVariant (QJsonValue json, QString path, QVariant fallback = QVariant ()) {
     QVariant ret = fallback;
     QJsonValue tmp = json;
@@ -46,12 +40,22 @@ QVariant jsonPathAsVariant (QJsonValue json, QString path, QVariant fallback = Q
 
 MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     m_isPolling = false;
+    m_pageSize = PageSize;
+    m_currentPageCount = 0;
     m_currentEntryId = "";
     m_currentStreamId = "";
+    m_currentStatusMsg = "";
+    m_streamMostRecentMSecs = 0;
+    QStringList subscriptionsRoles;
+    subscriptionsRoles << "feedId" << "categoryId",
+    m_subscriptionsList = new VariantModel (subscriptionsRoles, this);
+    QStringList streamRoles;
+    streamRoles << "entryId" << "date",
+    m_newsStreamList = new VariantModel (streamRoles, this);
     ///// SETTINGS /////
     QSettings::setDefaultFormat (QSettings::IniFormat);
     m_settings = new QSettings (this);
-    m_settings->setValue ("lastStart", QDateTime::currentDateTime ().toString ("yyyy-MM-dd hh:mm:ss.zzz"));
+    m_settings->setValue ("lastStart", CURR_MSECS);
     ///// TCP SERVER /////
     m_tcpServer = new QTcpServer (this);
     m_tcpServer->setProxy (QNetworkProxy::NoProxy);
@@ -78,15 +82,16 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     ///// SQL DATABASE /////
     m_database = QSqlDatabase::addDatabase ("QSQLITE");
     QString path (QStandardPaths::writableLocation (QStandardPaths::DataLocation));
-    QDir dir;
+    QDir dir (QDir::homePath ());
     dir.mkpath (path);
+    qDebug () << "Data path=" << path;
     m_database.setHostName ("localhost");
     m_database.setDatabaseName (QString ("%1/offlineStorage.db").arg (path));
     if (m_database.open ()) {
         qDebug ("Offline storage database opened.");
         if (m_database.tables ().contains ("news")) {
             QSqlQuery queryCheck (m_database);
-            if (!queryCheck.exec ("SELECT thumbnail FROM news LIMIT 1")) {
+            if (!queryCheck.exec ("SELECT thumbnail,cached FROM news LIMIT 1")) {
                 m_database.exec ("DROP TABLE news");
             }
         }
@@ -97,11 +102,12 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
                     << m_database.lastError ().text ();
     }
     ///// CALLBACKS /////
-    connect (this,        &MyFeedlyApi::currentStreamIdChanged, this, &MyFeedlyApi::onCurrentStreamIdChanged);
-    connect (this,        &MyFeedlyApi::showOnlyUnreadChanged,  this, &MyFeedlyApi::onShowOnlyUnreadChanged);
-    connect (this,        &MyFeedlyApi::isOfflineChanged,       this, &MyFeedlyApi::onShowOnlyUnreadChanged);
-    connect (m_tcpServer, &QTcpServer::newConnection,           this, &MyFeedlyApi::onIncomingConnection);
-    connect (m_timer,     &QTimer::timeout,                     this, &MyFeedlyApi::requestContents);
+    connect (this,        &MyFeedlyApi::currentStreamIdChanged,  this, &MyFeedlyApi::onCurrentStreamIdChanged);
+    connect (this,        &MyFeedlyApi::showOnlyUnreadChanged,   this, &MyFeedlyApi::onShowOnlyUnreadChanged);
+    connect (this,        &MyFeedlyApi::currentPageCountChanged, this, &MyFeedlyApi::onCurrentPageCountChanged);
+    connect (this,        &MyFeedlyApi::isOfflineChanged,        this, &MyFeedlyApi::onIsOfflineChanged);
+    connect (m_tcpServer, &QTcpServer::newConnection,            this, &MyFeedlyApi::onIncomingConnection);
+    connect (m_timer,     &QTimer::timeout,                      this, &MyFeedlyApi::requestContents);
     ///// LOADING /////
     MyCategory * categoryAll = getCategoryInfo (streamIdAll);
     categoryAll->set_label (tr ("All items"));
@@ -112,10 +118,10 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     MyCategory * categoryUncategorized = getCategoryInfo (streamIdUncategorized);
     categoryUncategorized->set_label (tr ("Uncategorized feeds"));
     categoryUncategorized->set_counter (0);
-    if (getIsLogged ()) {
+    if (get_isLogged ()) {
         loadSubscriptions ();
         loadUnreadCounts  ();
-        if (!getIsOffline ()) {
+        if (!get_isOffline ()) {
             requestCategories ();
         }
     }
@@ -153,14 +159,14 @@ void MyFeedlyApi::initializeTables () {
                      "    thumbnail TEXT DEFAULT (''), "
                      "    published INTEGER, "
                      "    crawled INTEGER, "
-                     "    updated INTEGER "
+                     "    updated INTEGER, "
+                     "    cached INTEGER "
                      ");");
     m_database.exec ("CREATE TABLE IF NOT EXISTS sync ( "
                      "    uid INTEGER PRIMARY KEY AUTOINCREMENT, "
                      "    type TEXT NOT NULL, "
-                     "    action TEXT NOT NULL, "
-                     "    item TEXT NOT NULL, "
-                     "    info TEXT NOT NULL "
+                     "    entryId TEXT NOT NULL, "
+                     "    value INTEGER NOT NULL DEFAULT (1) "
                      ");");
     m_database.commit ();
 }
@@ -223,7 +229,7 @@ QString MyFeedlyApi::getStreamIdMarked () {
 
 void MyFeedlyApi::refreshAll () {
     qDebug () << "refreshAll";
-    if (!getIsOffline ()) {
+    if (!get_isOffline ()) {
         m_timer->stop ();
         m_pollQueue.clear ();
         foreach (QString feedId, m_feeds.keys ()) {
@@ -232,71 +238,36 @@ void MyFeedlyApi::refreshAll () {
                 m_pollQueue.enqueue (feedId);
                 getFeedInfo (feedId)->set_status (MyFeed::Pending);
             }
+            qApp->processEvents ();
         }
-        if (!m_pollQueue.isEmpty ()) {
-            set_isPolling (true);
-            m_timer->start (2000);
+        syncAllFlags ();
+    }
+}
+
+void MyFeedlyApi::refreshStream (QString streamId) {
+    qDebug () << "refreshStream" << streamId;
+    if (!get_isOffline ()) {
+        bool takeAll = (streamId.endsWith ("/category/global.all") || streamId.endsWith ("/tag/global.saved"));
+        bool takeUncategorized = streamId.endsWith ("/category/global.uncategorized");
+        foreach (QString feedId, m_feeds.keys ()) {
+            MyFeed * feed = getFeedInfo (feedId);
+            if (feedId == streamId || // one feed only
+                    feed->get_categoryId () == streamId || // feeds from one category
+                    (feed->get_categoryId ().isEmpty () && takeUncategorized) || // feeds from no category
+                    takeAll) {// all feeds (heavy)
+                if (feed->get_status () == MyFeed::Idle) {
+                    m_pollQueue.enqueue (feedId);
+                    getFeedInfo (feedId)->set_status (MyFeed::Pending);
+                }
+            }
+            qApp->processEvents ();
         }
+        syncAllFlags ();
     }
 }
 
 /************************** SETTERS *************************************/
 
-void MyFeedlyApi::setApiCode (QString arg) {
-    QString key ("apiCode");
-    if (!m_settings->contains (key) || m_settings->value (key).toString () != arg) {
-        m_settings->setValue (key, arg);
-        emit apiCodeChanged (arg);
-    }
-}
-
-void MyFeedlyApi::setApiUserId (QString arg) {
-    QString key ("apiUserId");
-    if (!m_settings->contains (key) || m_settings->value (key).toString () != arg) {
-        m_settings->setValue (key, arg);
-        emit apiUserIdChanged (arg);
-    }
-}
-
-void MyFeedlyApi::setApiAccessToken (QString arg) {
-    QString key ("apiAccessToken");
-    if (!m_settings->contains (key) || m_settings->value (key).toString () != arg) {
-        m_settings->setValue (key, arg);
-        emit apiAccessTokenChanged (arg);
-    }
-}
-
-void MyFeedlyApi::setApiRefreshToken (QString arg) {
-    QString key ("apiRefreshToken");
-    if (!m_settings->contains (key) || m_settings->value (key).toString () != arg) {
-        m_settings->setValue (key, arg);
-        emit apiRefreshTokenChanged (arg);
-    }
-}
-
-void MyFeedlyApi::setShowOnlyUnread (bool arg) {
-    QString key ("showOnlyUnread");
-    if (!m_settings->contains (key) || m_settings->value (key).toBool () != arg) {
-        m_settings->setValue (key, arg);
-        emit showOnlyUnreadChanged (arg);
-    }
-}
-
-void MyFeedlyApi::setIsLogged (bool arg) {
-    QString key ("isLogged");
-    if (!m_settings->contains (key) || m_settings->value (key).toBool () != arg) {
-        m_settings->setValue (key, arg);
-        emit isLoggedChanged (arg);
-    }
-}
-
-void MyFeedlyApi::setIsOffline (bool arg) {
-    QString key ("isOffline");
-    if (!m_settings->contains (key) || m_settings->value (key).toBool () != arg) {
-        m_settings->setValue (key, arg);
-        emit isOfflineChanged (arg);
-    }
-}
 
 /*********************************** REQUESTS ***************************************/
 
@@ -305,7 +276,7 @@ void MyFeedlyApi::requestTokens () {
     request.setHeader (QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
     QString data;
     QTextStream stream (&data);
-    stream << "code" << "=" << getApiCode ()
+    stream << "code" << "=" << get_apiCode ()
            << "&" << "client_id" << "=" << apiClientId
            << "&" << "client_secret" << "=" << apiClientSecret
            << "&" << "redirect_uri" << "=" << apiRedirectUri
@@ -318,23 +289,25 @@ void MyFeedlyApi::requestTokens () {
 
 void MyFeedlyApi::requestCategories () {
     QNetworkRequest request (QUrl (QString ("%1/v3/categories").arg (apiBaseUrl)));
-    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (getApiAccessToken ()).toLocal8Bit ());
+    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (get_apiAccessToken ()).toLocal8Bit ());
     QNetworkReply * reply = m_netMan->get (request);
     connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRequestCategoriesReply);
 }
 
 void MyFeedlyApi::requestSubscriptions () {
     QNetworkRequest request (QUrl (QString ("%1/v3/subscriptions").arg (apiBaseUrl)));
-    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (getApiAccessToken ()).toLocal8Bit ());
+    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (get_apiAccessToken ()).toLocal8Bit ());
     QNetworkReply * reply = m_netMan->get (request);
     connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRequestSubscriptionsReply);
 }
 
 void MyFeedlyApi::requestContents () {
     QString feedId = m_pollQueue.dequeue ();
-    getFeedInfo (feedId)->set_status (MyFeed::Fetching);
+    MyFeed * feed = getFeedInfo (feedId);
+    feed->set_status (MyFeed::Fetching);
     qDebug () << "requestContents :" << feedId;
-    qint64 timestamp = 0;
+    set_currentStatusMsg (tr ("Refreshing feed : %1").arg (feed->get_title ()));
+    qint64 newerThan = 0;
     QSqlQuery query (m_database);
     query.prepare ("SELECT entryId, streamId, published, crawled, updated "
                    "FROM news "
@@ -342,16 +315,13 @@ void MyFeedlyApi::requestContents () {
                    "ORDER BY crawled DESC "
                    "LIMIT 1");
     query.bindValue (":streamId", feedId);
-    if (query.exec ()) {
-        while (query.next ()) {
-            timestamp = query.value (query.record ().indexOf ("crawled")).value<quint64> ();
-            break;
-        }
+    if (query.exec () && query.next ()) {
+        newerThan = query.value (query.record ().indexOf ("crawled")).value<quint64> ();
     }
-    qDebug () << "last item in db timestamp=" << timestamp;
-    if (timestamp <= 0) {
-        timestamp = QDateTime::currentDateTimeUtc ().addDays (-31).toMSecsSinceEpoch ();
-        qDebug () << "fallback to last month timestamp=" << timestamp;
+    qDebug () << "last item in db timestamp=" << newerThan;
+    if (newerThan <= 0) {
+        newerThan = QDateTime::currentDateTimeUtc ().addDays (-31).toMSecsSinceEpoch ();
+        qDebug () << "fallback to last month timestamp=" << newerThan;
     }
     QUrl url (QString ("%1/v3/streams/contents").arg (apiBaseUrl));
     QUrlQuery params;
@@ -359,37 +329,80 @@ void MyFeedlyApi::requestContents () {
     params.addQueryItem ("count",      "1000");
     params.addQueryItem ("ranked",     "newest");
     params.addQueryItem ("unreadOnly", "false");
-    params.addQueryItem ("newerThan",  QString ("%1").arg (timestamp));
+    params.addQueryItem ("newerThan",  QString ("%1").arg (newerThan));
     url.setQuery (params);
     QNetworkRequest request (url);
-    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (getApiAccessToken ()).toLocal8Bit ());
+    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (get_apiAccessToken ()).toLocal8Bit ());
     QNetworkReply * reply = m_netMan->get (request);
     reply->setProperty ("feedId", feedId);
     connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRequestContentsReply);
 }
 
 void MyFeedlyApi::requestReadOperations () {
-    QNetworkRequest request (QUrl (QString ("%1/v3/markers/reads").arg (apiBaseUrl)));
-    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (getApiAccessToken ()).toLocal8Bit ());
+    set_currentStatusMsg (tr ("Pulling latest read operations..."));
+    qint64 newerThan = get_lastPullMSecs () - (10 * 60 * 1000); // 10 minutes before last check (security)
+    if (newerThan <= 0) {
+        newerThan = QDateTime::currentDateTimeUtc ().addDays (-31).toMSecsSinceEpoch (); // one month ago
+    }
+    set_lastPullMSecs (CURR_MSECS);
+    QUrl url (QString ("%1/v3/markers/reads?newerThan=%2").arg (apiBaseUrl).arg (newerThan));
+    QNetworkRequest request (url);
+    request.setRawHeader ("Authorization", QString ("OAuth %1").arg (get_apiAccessToken ()).toLocal8Bit ());
     QNetworkReply * reply = m_netMan->get (request);
     connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRequestReadOperationsReply);
 }
 
 void MyFeedlyApi::syncAllFlags () {
-    // TODO : before pull read operation, push local ones
-    requestReadOperations (); // FIXME : do it only after all local ops are pushed
+    set_isPolling (true);
+    pushLocalReadOperations ();
+}
+
+void MyFeedlyApi::pushLocalReadOperations () {
+    qDebug () << "MyFeedlyApi::pushLocalReadOperations";
+    set_currentStatusMsg (tr ("Pushing local read operations..."));
+    QSqlQuery query (m_database);
+    query.prepare ("SELECT sync.*,news.streamId "
+                   "FROM sync,news "
+                   "WHERE sync.entryId=news.entryId AND type='MARK_AS_READ' AND value='1' "
+                   "ORDER BY streamId");
+    QStringList entries;
+    if (query.exec ()) {
+        QSqlRecord record = query.record ();
+        int fieldEntryId = record.indexOf ("entryId");
+        while (query.next ()) {
+            entries.append (query.value (fieldEntryId).toString ());
+        }
+    }
+    if (!entries.isEmpty ()) {
+        QNetworkRequest request (QUrl (QString ("%1/v3/markers").arg (apiBaseUrl)));
+        request.setRawHeader ("Authorization", QString ("OAuth %1").arg (get_apiAccessToken ()).toLocal8Bit ());
+        request.setHeader (QNetworkRequest::ContentTypeHeader, QString ("application/json"));
+        QString data = QString ("{\"action\":\"markAsRead\",\"type\":\"entries\",\"entryIds\":[\"%1\"]}").arg (entries.join ("\",\""));
+        //qDebug () << "POST DATA=" << data;
+        QNetworkReply * reply = m_netMan->post (request, data.toLocal8Bit ());
+        reply->setProperty ("entries", entries);
+        connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onPushLocalOperationsReply);
+    }
+    else {
+        requestReadOperations ();
+    }
 }
 
 void MyFeedlyApi::markItemAsRead (QString entryId) {
     qDebug () << "MyFeedlyApi::markItemAsRead :" << entryId;
-    MyContent * entry = getContentInfo (entryId);
-    if (entry) {
-        if (entry->get_unread ()) {
-            // TODO : save sync operation in db for latter push
-            QSqlQuery query (m_database);
-            query.prepare ("UPDATE news SET unread=0 WHERE entryId=:entryId");
-            query.bindValue (":entryId", entryId);
-            if (query.exec ()) {
+    if (!entryId.isEmpty ()) {
+        MyContent * entry = getContentInfo (entryId);
+        if (entry) {
+            if (entry->get_unread ()) {
+                QSqlQuery querySave (m_database);
+                querySave.prepare ("INSERT INTO sync (entryId, type) VALUES (:entryId, :type)");
+                querySave.bindValue (":entryId", entryId);
+                querySave.bindValue (":type", "MARK_AS_READ");
+                querySave.exec ();
+                QSqlQuery queryUpdate (m_database);
+                queryUpdate.prepare ("UPDATE news SET unread=0 WHERE entryId=:entryId");
+                queryUpdate.bindValue (":entryId", entryId);
+                queryUpdate.exec ();
                 entry->set_unread (false);
             }
         }
@@ -399,22 +412,87 @@ void MyFeedlyApi::markItemAsRead (QString entryId) {
 void MyFeedlyApi::markCurrentStreamAsRead () {
     qDebug () << "MyFeedlyApi::markCurrentStreamAsRead";
     m_database.transaction ();
-    foreach (QVariant item, m_newsStreamList) {
-        markItemAsRead (item.toMap ().value ("entryId").toString ());
+    for (int idx = 0; idx < m_newsStreamList->count (); idx++) {
+        QVariantMap item = m_newsStreamList->valueAt (idx);
+        markItemAsRead (item.value ("entryId").toString ());
     }
     m_database.commit ();
     loadUnreadCounts ();
+}
+
+void MyFeedlyApi::logoutAndSweepAll () {
+    qDebug () << "MyFeedlyApi::logoutAndSweepAll";
+    set_currentStatusMsg   (tr ("Dropping local database..."));
+    set_isPolling          (true);
+    set_isOffline          (true);
+    set_currentStreamId    ("");
+    set_currentEntryId     ("");
+    m_newsStreamList->deleteAll ();
+    m_subscriptionsList->deleteAll ();
+    qApp->processEvents    ();
+    m_database.transaction ();
+    m_database.exec        ("DROP TABLE sync");
+    m_database.exec        ("DROP TABLE news");
+    m_database.exec        ("DROP TABLE feeds");
+    m_database.exec        ("DROP TABLE categories");
+    m_database.commit      ();
+    qApp->processEvents    ();
+    m_database.exec        ("VACUUM");
+    qApp->processEvents    ();
+    initializeTables       ();
+    qApp->processEvents    ();
+    set_currentStatusMsg   (tr ("Cleaning personal info..."));
+    set_apiAccessToken     ("");
+    set_apiCode            ("");
+    set_apiRefreshToken    ("");
+    set_apiUserId          ("");
+    foreach (QString feedId, m_feeds.keys ()) {
+        MyFeed * feed = getFeedInfo (feedId);
+        if (feed) {
+            feed->set_counter (0);
+        }
+        m_feeds.remove (feedId);
+        delete feed;
+        feed = NULL;
+    }
+    qApp->processEvents    ();
+    foreach (QString categoryId, m_categories.keys ()) {
+        MyCategory * category = getCategoryInfo (categoryId);
+        if (category) {
+            category->set_counter (0);
+        }
+        if (categoryId != streamIdAll && categoryId != streamIdMarked && categoryId != streamIdUncategorized) {
+            m_categories.remove (categoryId);
+            delete category;
+            category = NULL;
+        }
+    }
+    qApp->processEvents    ();
+    set_isOffline        (false);
+    set_isPolling        (false);
+    set_isLogged         (false);
 }
 
 /******************************* CALLBACKS *****************************************/
 
 void MyFeedlyApi::onCurrentStreamIdChanged (QString arg) {
     qDebug () << "onCurrentStreamIdChanged :" << arg;
+    set_currentPageCount (0);
+    set_streamMostRecentMSecs (CURR_MSECS);
+    m_newsStreamList->deleteAll ();
     refreshStreamModel ();
 }
 
 void MyFeedlyApi::onShowOnlyUnreadChanged (bool arg) {
     qDebug () << "onShowOnlyUnreadChanged :" << arg;
+    set_currentPageCount (0);
+    set_streamMostRecentMSecs (CURR_MSECS);
+    m_newsStreamList->deleteAll ();
+    refreshStreamModel ();
+}
+
+void MyFeedlyApi::onCurrentPageCountChanged (int arg) {
+    qDebug () << "onCurrentPageCountChanged :" << arg;
     refreshStreamModel ();
 }
 
@@ -447,7 +525,7 @@ void MyFeedlyApi::onSockReadyRead () {
         if (capture.count () >= 2) {
             QString apiCode = capture.at (1);
             qDebug () << "apiCode=" << apiCode;
-            setApiCode (apiCode);
+            set_apiCode (apiCode);
             QString html;
             QTextStream stream (&html);
             stream << "HTTP/1.1 200 OK" << CRLF
@@ -455,7 +533,7 @@ void MyFeedlyApi::onSockReadyRead () {
                    << "version: HTTP/1.1" << CRLF
                    << "content-type: text/html; charset=UTF-8" << CRLF
                    << CRLF
-                   << "<html><head></head><body>"
+                   << "<html><head></head><body style='color: white;'>"
                    << "<h1>Logged in successfully !</h1>"
                    << "Your data is being imported into Feed'Me, "
                    << "it will be finished anytime soon, please wait..."
@@ -477,13 +555,13 @@ void MyFeedlyApi::onRequestTokenReply () {
         QJsonDocument json = QJsonDocument::fromJson (data, &error);
         if (!json.isNull () && json.isObject ()) {
             QJsonObject obj = json.object ();
-            setApiUserId       (obj.value ("id").toString ());
-            setApiAccessToken  (obj.value ("access_token").toString ());
-            setApiRefreshToken (obj.value ("refresh_token").toString ());
-            qDebug () << "userId=" << getApiUserId ()
-                      << "accessToken=" << getApiAccessToken ()
-                      << "refreshToken=" << getApiRefreshToken ();
-            setIsLogged (true);
+            set_apiUserId       (obj.value ("id").toString ());
+            set_apiAccessToken  (obj.value ("access_token").toString ());
+            set_apiRefreshToken (obj.value ("refresh_token").toString ());
+            qDebug () << "userId=" << get_apiUserId ()
+                      << "accessToken=" << get_apiAccessToken ()
+                      << "refreshToken=" << get_apiRefreshToken ();
+            set_isLogged (true);
             requestCategories ();
         }
         else {
@@ -518,6 +596,7 @@ void MyFeedlyApi::onRequestCategoriesReply () {
                 query.bindValue (":categoryId",jsonPathAsVariant (item, "id").toString ());
                 query.exec ();
                 categories << jsonPathAsVariant (item, "id").toString ();
+                qApp->processEvents ();
             }
             m_database.commit ();
             ///// UPDATE ALL ITEMS /////
@@ -529,6 +608,7 @@ void MyFeedlyApi::onRequestCategoriesReply () {
                 query.bindValue (":label",      jsonPathAsVariant (item, "label").toString ());
                 query.bindValue (":categoryId", jsonPathAsVariant (item, "id").toString ());
                 query.exec ();
+                qApp->processEvents ();
             }
             m_database.commit ();
             ///// REMOVE OLD ITEMS /////
@@ -575,6 +655,7 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
                 query.bindValue (":feedId", feedId);
                 query.exec ();
                 feeds << feedId;
+                qApp->processEvents ();
             }
             m_database.commit ();
             ///// UPDATE ALL ITEMS /////
@@ -591,6 +672,7 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
                 query.bindValue (":categoryId", jsonPathAsVariant (item, "categories/0/id", "").toString ());
                 query.bindValue (":feedId",     jsonPathAsVariant (item, "id", "").toString ());
                 query.exec ();
+                qApp->processEvents ();
             }
             m_database.commit ();
             ///// REMOVE OLD ITEMS /////
@@ -600,7 +682,7 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
                                     "WHERE feedId NOT IN (\"%1\");").arg (feeds.join ("\", \"")));
             query.exec ();
             m_database.commit ();
-            qDebug () << "feeds=" << feeds;
+            //qDebug () << "feeds=" << feeds;
             loadSubscriptions ();
             loadUnreadCounts  ();
         }
@@ -636,8 +718,8 @@ void MyFeedlyApi::onRequestContentsReply () {
                 QString thumbnail = jsonPathAsVariant (item, "visual/url", "").toString ();
                 QSqlQuery query (m_database);
                 query.prepare ("INSERT OR IGNORE INTO "
-                               "news (entryId, streamId, title, author, content, link, thumbnail, unread, published, updated, crawled) "
-                               "VALUES (:entryId, :streamId, :title, :author, :content, :link, :thumbnail, :unread, :published, :updated, :crawled);");
+                               "news (entryId, streamId, title, author, content, link, thumbnail, unread, published, updated, crawled, cached) "
+                               "VALUES (:entryId, :streamId, :title, :author, :content, :link, :thumbnail, :unread, :published, :updated, :crawled, :cached);");
                 query.bindValue (":entryId",   jsonPathAsVariant (item, "id", "").toString ());
                 query.bindValue (":streamId",  jsonPathAsVariant (item, "origin/streamId", "").toString ());
                 query.bindValue (":title",     jsonPathAsVariant (item, "title", "").toString ().trimmed ());
@@ -649,7 +731,9 @@ void MyFeedlyApi::onRequestContentsReply () {
                 query.bindValue (":published", jsonPathAsVariant (item, "published", 0).toReal ());
                 query.bindValue (":updated",   jsonPathAsVariant (item, "updated", 0).toReal ());
                 query.bindValue (":crawled",   jsonPathAsVariant (item, "crawled", 0).toReal ());
+                query.bindValue (":cached",    CURR_MSECS);
                 query.exec ();
+                qApp->processEvents ();
             }
             m_database.commit ();
         }
@@ -669,8 +753,8 @@ void MyFeedlyApi::onRequestContentsReply () {
         m_timer->start (100); // do next quickly
     }
     else {
+        set_currentStatusMsg (tr ("Idle."));
         set_isPolling (false);
-        syncAllFlags ();
     }
 }
 
@@ -680,13 +764,45 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
     Q_ASSERT (reply);
     if (reply->error () == QNetworkReply::NoError) {
         QByteArray data = reply->readAll ();
-        qDebug () << "data=\n" << data;
+        //qDebug () << "data=\n" << data;
         QJsonParseError error;
         QJsonDocument json = QJsonDocument::fromJson (data, &error);
         if (!json.isNull () && json.isObject ()) {
-
-            // TODO : mark locally entries as read according to timestamps and streamId
-
+            QJsonObject item = json.object ();
+            QJsonArray feeds = item.value ("feeds").toArray ();
+            m_database.transaction ();
+            foreach (QJsonValue feed, feeds) {
+                QJsonObject feedObj = feed.toObject ();
+                QSqlQuery feedQuery (m_database);
+                feedQuery.prepare ("UPDATE news SET unread=0 "
+                                   "WHERE streamId=:streamId AND crawled<:asOf");
+                feedQuery.bindValue (":streamId", feedObj.value ("id").toString ());
+                feedQuery.bindValue (":asOf", feedObj.value ("asOf").toDouble ());
+                feedQuery.exec ();
+                qApp->processEvents ();
+            }
+            m_database.commit ();
+            QJsonArray entries = item.value ("entries").toArray ();
+            m_database.transaction ();
+            foreach (QJsonValue entry, entries) {
+                QSqlQuery entryQuery (m_database);
+                entryQuery.prepare ("UPDATE news SET unread=0 "
+                                    "WHERE entryId=:entryId");
+                entryQuery.bindValue (":entryId", entry.toString ());
+                entryQuery.exec ();
+                qApp->processEvents ();
+            }
+            m_database.commit ();
+            loadUnreadCounts ();
+            if (!m_pollQueue.isEmpty ()) {
+                set_isPolling (true);
+                set_currentStatusMsg (tr ("Refreshing feeds..."));
+                m_timer->start (1200);
+            }
+            else {
+                set_currentStatusMsg (tr ("Idle."));
+                set_isPolling (false);
+            }
         }
         else {
             qWarning () << "Failed to parse contents from JSON response :"
@@ -700,10 +816,33 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
     }
 }
 
+void MyFeedlyApi::onPushLocalOperationsReply () {
+    qDebug () << "onPushLocalOperationsReply";
+    QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
+    Q_ASSERT (reply);
+    QStringList entries = reply->property ("entries").toStringList ();
+    //qDebug () << "entries=" << entries;
+    if (reply->error () == QNetworkReply::NoError) {
+        m_database.transaction ();
+        foreach (QString entryId, entries) {
+            QSqlQuery query (m_database);
+            query.prepare ("DELETE FROM sync WHERE entryId=:entryId AND type='MARK_AS_READ' AND value=1 ");
+            query.bindValue (":entryId", entryId);
+            query.exec ();
+        }
+        m_database.commit ();
+        requestReadOperations ();
+    }
+    else {
+        qWarning () << "Network error on push local operations :"
+                    << reply->errorString ();
+    }
+}
+
 /******************************* FROM DB *****************************************/
 
 void MyFeedlyApi::loadSubscriptions () {
-    QVariantList ret;
+    m_subscriptionsList->deleteAll ();
     QSqlQuery query (m_database);
     QString sql ("SELECT feeds.*,categories.label "
                  "FROM feeds "
@@ -723,7 +862,7 @@ void MyFeedlyApi::loadSubscriptions () {
             QVariantMap entry;
             entry.insert ("categoryId", (!categoryId.isEmpty () ? categoryId : streamIdUncategorized));
             entry.insert ("feedId",     feedId);
-            ret << entry;
+            m_subscriptionsList->append (entry);
             qDebug () << ">>>" << entry;
             ///// CATEGORY INFO /////
             if (!categoryId.isEmpty ()) {
@@ -735,13 +874,13 @@ void MyFeedlyApi::loadSubscriptions () {
             feed->set_categoryId (categoryId);
             feed->set_title   (query.value (fieldFeedTitle).toString ());
             feed->set_website (query.value (fieldFeedWebsite).toString ());
+            qApp->processEvents ();
         }
     }
     else {
         qWarning () << "Failed to load subscriptions :"
                     << query.lastError ().text ();
     }
-    set_subscriptionsList (ret);
 }
 
 void MyFeedlyApi::loadUnreadCounts () {
@@ -762,6 +901,7 @@ void MyFeedlyApi::loadUnreadCounts () {
             feed->set_counter (unreadCount);
             streamIds << feedId;
             total += unreadCount;
+            qApp->processEvents ();
         }
     }
     else {
@@ -772,6 +912,7 @@ void MyFeedlyApi::loadUnreadCounts () {
         if (!streamIds.contains (streamId)) {
             getFeedInfo (streamId)->set_counter (0);
         }
+        qApp->processEvents ();
     }
     streamIds.clear ();
     ///// CATEGORIES UNREAD COUNTS /////
@@ -791,6 +932,7 @@ void MyFeedlyApi::loadUnreadCounts () {
             MyCategory * category = getCategoryInfo (categoryId);
             category->set_counter (unreadCount);
             streamIds << categoryId;
+            qApp->processEvents ();
         }
     }
     else {
@@ -801,6 +943,7 @@ void MyFeedlyApi::loadUnreadCounts () {
         if (!streamIds.contains (streamId)) {
             getCategoryInfo (streamId)->set_counter (0);
         }
+        qApp->processEvents ();
     }
     MyCategory * categoryAll = getCategoryInfo (streamIdAll);
     categoryAll->set_counter (total);
@@ -809,95 +952,154 @@ void MyFeedlyApi::loadUnreadCounts () {
 }
 
 void MyFeedlyApi::refreshStreamModel () {
-    QVariantList ret;
-    QString clauseSelect;
-    QString clauseFrom;
-    QStringList clauseWhere;
-    if (m_currentStreamId.endsWith ("/category/global.all")) {
-        clauseSelect = " SELECT news.* ";
-        clauseFrom   = " FROM news ";
-    }
-    else if (m_currentStreamId.endsWith ("/tag/global.saved")){
-        clauseSelect = " SELECT news.* ";
-        clauseFrom   = " FROM news ";
-        clauseWhere.append (" news.marked=1 ");
-    }
-    else if (m_currentStreamId.endsWith ("/category/global.uncategorized")){
-        clauseSelect = " SELECT news.*,feeds.categoryId,feeds.feedId ";
-        clauseFrom   = " FROM news,feeds ";
-        clauseWhere.append (" news.streamId=feeds.feedId ");
-        clauseWhere.append (" feeds.categoryId='' ");
-    }
-    else if (m_currentStreamId.contains ("/category/")) {
-        clauseSelect = " SELECT news.*,feeds.categoryId,feeds.feedId";
-        clauseFrom   = " FROM news,feeds ";
-        clauseWhere.append (" news.streamId=feeds.feedId ");
-        clauseWhere.append (" feeds.categoryId=:categoryId ");
-    }
-    else if (m_currentStreamId.startsWith ("feed/")) {
-        clauseSelect = " SELECT news.*";
-        clauseFrom   = " FROM news ";
-        clauseWhere.append (" news.streamId=:feedId ");
-    }
-    else {
-        qWarning () << "Unknow type of stream :"
-                    << m_currentStreamId;
-    }
-    if (getShowOnlyUnread ()) {
-        clauseWhere.append (" unread=1 ");
-    }
-    QString clauseOrder (" ORDER BY published DESC ");
-    QString clauseLimit (" LIMIT 250 "); // TODO : put pagination in settings
-    QString sql (clauseSelect +
-                 clauseFrom +
-                 (!clauseWhere.isEmpty () ? " WHERE " + clauseWhere.join (" AND ") : "") +
-                 clauseOrder +
-                 clauseLimit + ";");
-    qDebug () << "sql=" << sql;
-    QSqlQuery query (m_database);
-    query.prepare   (sql.trimmed ());
-    query.bindValue (":feedId",     m_currentStreamId);
-    query.bindValue (":categoryId", m_currentStreamId);
-    if (query.exec ()) {
-        QSqlRecord record   = query.record ();
-        int fieldEntryId    = record.indexOf ("entryId");
-        int fieldStreamId   = record.indexOf ("streamId");
-        int fieldUnread     = record.indexOf ("unread");
-        int fieldMarked     = record.indexOf ("marked");
-        int fieldTitle      = record.indexOf ("title");
-        int fieldAuthor     = record.indexOf ("author");
-        int fieldContent    = record.indexOf ("content");
-        int fieldLink       = record.indexOf ("link");
-        int fieldPublished  = record.indexOf ("published");
-        int fieldCrawled    = record.indexOf ("crawled");
-        int fieldUpdated    = record.indexOf ("updated");
-        int fieldThumbnail  = record.indexOf ("thumbnail");
-        while (query.next ()) {
-            QString entryId = query.value (fieldEntryId).toString ();
-            QDate date = QDateTime::fromMSecsSinceEpoch (query.value (fieldPublished).value<quint64> ()).date ();
-            ///// MODEL ENTRY /////
-            QVariantMap entry;
-            entry.insert ("entryId", entryId);
-            entry.insert ("date", date.toString ("yyyy-MM-dd"));
-            ret << entry;
-            ///// CONTENT INFO /////
-            MyContent * content = getContentInfo (entryId);
-            content->set_content   (query.value (fieldContent).toString ());
-            content->set_title     (query.value (fieldTitle).toString ());
-            content->set_author    (query.value (fieldAuthor).toString ());
-            content->set_link      (query.value (fieldLink).toString ());
-            content->set_thumbnail (query.value (fieldThumbnail).toString ());
-            content->set_streamId  (query.value (fieldStreamId).toString ());
-            content->set_unread    (query.value (fieldUnread).toInt () == 1);
-            content->set_marked    (query.value (fieldMarked).toInt () == 1);
-            content->set_updated   (query.value (fieldUpdated).toDateTime ());
-            content->set_crawled   (query.value (fieldCrawled).toDateTime ());
-            content->set_published (query.value (fieldPublished).toDateTime ());
+    if (!m_currentStreamId.isEmpty ()) {
+        QString clauseSelect;
+        QString clauseFrom;
+        QStringList clauseWhere;
+        if (m_currentStreamId.endsWith ("/category/global.all")) {
+            clauseSelect = " SELECT news.* ";
+            clauseFrom   = " FROM news ";
+        }
+        else if (m_currentStreamId.endsWith ("/tag/global.saved")){
+            clauseSelect = " SELECT news.* ";
+            clauseFrom   = " FROM news ";
+            clauseWhere.append (" news.marked=1 ");
+        }
+        else if (m_currentStreamId.endsWith ("/category/global.uncategorized")){
+            clauseSelect = " SELECT news.*,feeds.categoryId,feeds.feedId ";
+            clauseFrom   = " FROM news,feeds ";
+            clauseWhere.append (" news.streamId=feeds.feedId ");
+            clauseWhere.append (" feeds.categoryId='' ");
+        }
+        else if (m_currentStreamId.contains ("/category/")) {
+            clauseSelect = " SELECT news.*,feeds.categoryId,feeds.feedId";
+            clauseFrom   = " FROM news,feeds ";
+            clauseWhere.append (" news.streamId=feeds.feedId ");
+            clauseWhere.append (" feeds.categoryId=:categoryId ");
+        }
+        else if (m_currentStreamId.startsWith ("feed/")) {
+            clauseSelect = " SELECT news.*";
+            clauseFrom   = " FROM news ";
+            clauseWhere.append (" news.streamId=:feedId ");
+        }
+        else {
+            qWarning () << "Unknow type of stream :"
+                        << m_currentStreamId;
+        }
+        if (get_showOnlyUnread ()) {
+            clauseWhere.append (" unread=1 ");
+        }
+        clauseWhere.append (" cached<=:olderThan ");
+        QString clauseOrder (" ORDER BY published DESC ");
+        QString clauseLimit = QString (" LIMIT %1,%2 ").arg (m_currentPageCount * PageSize).arg (PageSize);
+        QString sql (clauseSelect +
+                     clauseFrom +
+                     (!clauseWhere.isEmpty () ? " WHERE " + clauseWhere.join (" AND ") : "") +
+                     clauseOrder +
+                     clauseLimit + ";");
+        qDebug () << "sql=" << sql;
+        QSqlQuery query (m_database);
+        query.prepare   (sql.trimmed ());
+        query.bindValue (":feedId",     m_currentStreamId);
+        query.bindValue (":categoryId", m_currentStreamId);
+        query.bindValue (":olderThan",  m_streamMostRecentMSecs);
+        if (query.exec ()) {
+            QSqlRecord record   = query.record ();
+            int fieldEntryId    = record.indexOf ("entryId");
+            int fieldStreamId   = record.indexOf ("streamId");
+            int fieldUnread     = record.indexOf ("unread");
+            int fieldMarked     = record.indexOf ("marked");
+            int fieldTitle      = record.indexOf ("title");
+            int fieldAuthor     = record.indexOf ("author");
+            int fieldContent    = record.indexOf ("content");
+            int fieldLink       = record.indexOf ("link");
+            int fieldPublished  = record.indexOf ("published");
+            int fieldCrawled    = record.indexOf ("crawled");
+            int fieldUpdated    = record.indexOf ("updated");
+            int fieldThumbnail  = record.indexOf ("thumbnail");
+            while (query.next ()) {
+                QString entryId = query.value (fieldEntryId).toString ();
+                QDate date = QDateTime::fromMSecsSinceEpoch (query.value (fieldPublished).value<quint64> ()).date ();
+                ///// MODEL ENTRY /////
+                QVariantMap entry;
+                entry.insert ("entryId", entryId);
+                entry.insert ("date", date.toString ("yyyy-MM-dd"));
+                m_newsStreamList->append (entry);
+                ///// CONTENT INFO /////
+                MyContent * content = getContentInfo (entryId);
+                content->set_content   (query.value (fieldContent).toString ());
+                content->set_title     (query.value (fieldTitle).toString ());
+                content->set_author    (query.value (fieldAuthor).toString ());
+                content->set_link      (query.value (fieldLink).toString ());
+                content->set_thumbnail (query.value (fieldThumbnail).toString ());
+                content->set_streamId  (query.value (fieldStreamId).toString ());
+                content->set_unread    (query.value (fieldUnread).toInt () == 1);
+                content->set_marked    (query.value (fieldMarked).toInt () == 1);
+                content->set_updated   (query.value (fieldUpdated).toDateTime ());
+                content->set_crawled   (query.value (fieldCrawled).toDateTime ());
+                content->set_published (query.value (fieldPublished).toDateTime ());
+                qApp->processEvents ();
+            }
+        }
+        else {
+            qWarning () << "Failed to load stream :"
+                        << query.lastError ().text ();
         }
     }
-    else {
-        qWarning () << "Failed to load stream :"
-                    << query.lastError ().text ();
+}
+
+/************************ VARIANT LIST MODEL ****************************/
+
+VariantModel::VariantModel (QStringList roles, QObject * parent) : QAbstractListModel (parent) {
+    foreach (QString role, roles) {
+        m_roles.insert (m_roles.count (), role.toLocal8Bit ());
     }
-    set_newsStreamList (ret);
+}
+
+int VariantModel::count () const {
+    return m_items.size ();
+}
+
+void VariantModel::prepend (QVariantMap item) {
+    beginInsertRows (QModelIndex (), 0, 0);
+    m_items.prepend (item);
+    endInsertRows ();
+}
+
+void VariantModel::append (QVariantMap item) {
+    beginInsertRows (QModelIndex (), count (), count ());
+    m_items.append (item);
+    endInsertRows ();
+}
+
+void VariantModel::deleteAll () {
+    beginResetModel ();
+    m_items.clear ();
+    endResetModel ();
+}
+
+QVariantMap VariantModel::valueAt (int idx) const {
+    QVariantMap ret;
+    if (idx > 0 && idx < count ()) {
+        ret = m_items.at (idx);
+    }
+    return ret;
+}
+
+int VariantModel::rowCount (const QModelIndex & parent) const {
+    Q_UNUSED (parent);
+    return count ();
+}
+
+QVariant VariantModel::data (const QModelIndex & index, int role) const {
+    QVariant ret;
+    int idx = index.row ();
+    if (idx > 0 && idx < count ()) {
+        ret.setValue (m_items.at (idx).value (QString::fromLocal8Bit (m_roles.value (role))));
+    }
+    return ret;
+}
+
+QHash<int, QByteArray> VariantModel::roleNames() const {
+    return m_roles;
 }
