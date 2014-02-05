@@ -328,6 +328,11 @@ Page {
             right: parent.right;
         }
 
+        Rectangle {
+            color: "white";
+            opacity: 0.05;
+            anchors.fill: parent;
+        }
         BusyIndicator {
             id: indicatorPolling;
             running: Feedly.isPolling;

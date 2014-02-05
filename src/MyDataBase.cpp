@@ -44,6 +44,7 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     m_settings->setValue ("lastStart", QDateTime::currentDateTime ().toString ("yyyy-MM-dd hh:mm:ss.zzz"));
     ///// TCP SERVER /////
     m_tcpServer = new QTcpServer (this);
+    m_tcpServer->setProxy (QNetworkProxy::NoProxy);
     m_port = 0;
     QVector<quint16> vecPorts;
     vecPorts << 5678 << 6789 << 7890;
@@ -95,12 +96,10 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     categoryMarked->set_label (tr ("Marked items"));
     categoryMarked->set_counter (0);
     if (getIsLogged ()) {
+        loadSubscriptions ();
+        loadUnreadCounts  ();
         if (!getIsOffline ()) {
             requestCategories ();
-        }
-        else {
-            loadSubscriptions ();
-            loadUnreadCounts  ();
         }
     }
 }
@@ -210,8 +209,11 @@ void MyFeedlyApi::refreshAll () {
         m_timer->stop ();
         m_pollQueue.clear ();
         foreach (QString feedId, m_feeds.keys ()) {
-            m_pollQueue.enqueue (feedId);
-            getFeedInfo (feedId)->set_status (MyFeed::Pending);
+            MyFeed * feed = getFeedInfo (feedId);
+            if (feed->get_status () == MyFeed::Idle) {
+                m_pollQueue.enqueue (feedId);
+                getFeedInfo (feedId)->set_status (MyFeed::Pending);
+            }
         }
         if (!m_pollQueue.isEmpty ()) {
             set_isPolling (true);

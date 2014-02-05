@@ -12,6 +12,8 @@
 #include <QQmlPropertyMap>
 #include <QStringList>
 #include <QDateTime>
+#include <QAbstractProxyModel>
+#include <QAbstractItemModel>
 #include <QAbstractListModel>
 #include <QVariant>
 #include <QMetaEnum>
@@ -26,6 +28,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QNetworkProxy>
 #include <QIODevice>
 #include <QAbstractSocket>
 #include <QJsonDocument>

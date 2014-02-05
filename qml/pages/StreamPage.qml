@@ -166,6 +166,21 @@ Page {
             id: pulleyUp;
 
             MenuItem {
+                text: qsTr ("Mark all as read");
+                font.family: Theme.fontFamilyHeading;
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                }
+                onClicked: {
+                    remorseMarkAllRead.execute (qsTr ("Marking all news read"),
+                                                function () {
+                                                    // TODO : set unread : false, and save sync actions
+                                                },
+                                                5000);
+                }
+            }
+            MenuItem {
                 text: qsTr ("Load older items...");
                 font.family: Theme.fontFamilyHeading;
                 anchors {

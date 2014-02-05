@@ -7,10 +7,6 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QGuiApplication>
-#include <QAbstractProxyModel>
-#include <QAbstractItemModel>
-#include <QAbstractListModel>
-#include <QTimer>
 #include <qqml.h>
 
 #include <sailfishapp.h>
@@ -29,6 +25,10 @@ int main (int argc, char * argv []){
     QGuiApplication * app = SailfishApp::application (argc, argv);
     app->setApplicationName ("FeedMe");
     app->setOrganizationName ("TheBootroo");
+    if (!qgetenv ("HTTP_PROXY").isEmpty ()) {
+        QString proxyStr = QString::fromLocal8Bit (qgetenv ("HTTP_PROXY")).toLower ().remove ("http://");
+        QNetworkProxy::setApplicationProxy (QNetworkProxy (QNetworkProxy::HttpProxy, proxyStr.split (':').first (), proxyStr.split (':').last ().toInt ()));
+    }
     QQuickView * view = SailfishApp::createView ();
     view->rootContext ()->setContextProperty ("Feedly", new MyFeedlyApi (view));
     view->setSource (QUrl ("qrc:/qml/harbour-feedme.qml"));
