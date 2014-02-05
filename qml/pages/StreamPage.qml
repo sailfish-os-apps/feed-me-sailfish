@@ -95,6 +95,19 @@ Page {
                     verticalCenter: parent.verticalCenter;
                 }
             }
+            Image {
+                id: imgThumbnail;
+                source: (itemNews.contentInfo.thumbnail !== "" ? itemNews.contentInfo.thumbnail : "../img/noimage.png");
+                fillMode: Image.PreserveAspectCrop;
+                asynchronous: true;
+                cache: true;
+                width: height;
+                anchors {
+                    top: parent.top;
+                    left: parent.left;
+                    bottom: parent.bottom;
+                }
+            }
             Text {
                 text: itemNews.contentInfo.title;
                 textFormat: Text.PlainText;
@@ -105,9 +118,10 @@ Page {
                 elide: Text.ElideRight;
                 color: Theme.primaryColor;
                 anchors {
-                    left: parent.left;
+                    left: imgThumbnail.right;
                     right: parent.right;
-                    margins: Theme.paddingLarge;
+                    leftMargin: Theme.paddingSmall;
+                    rightMargin: Theme.paddingLarge;
                     verticalCenter: parent.verticalCenter;
                 }
             }
@@ -147,7 +161,7 @@ Page {
                 }
             }
             MenuItem {
-                text: qsTr ("Mark all as read [TODO]");
+                text: qsTr ("Mark all as read");
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
@@ -156,9 +170,9 @@ Page {
                 onClicked: {
                     remorseMarkAllRead.execute (qsTr ("Marking all news read"),
                                                 function () {
-                                                    // TODO : set unread : false, and save sync actions
+                                                    Feedly.markCurrentStreamAsRead ();
                                                 },
-                                                5000);
+                                                3000);
                 }
             }
         }
@@ -166,7 +180,7 @@ Page {
             id: pulleyUp;
 
             MenuItem {
-                text: qsTr ("Mark all as read [TODO]");
+                text: qsTr ("Mark all as read");
                 font.family: Theme.fontFamilyHeading;
                 anchors {
                     left: parent.left;
@@ -175,9 +189,9 @@ Page {
                 onClicked: {
                     remorseMarkAllRead.execute (qsTr ("Marking all news read"),
                                                 function () {
-                                                    // TODO : set unread : false, and save sync actions
+                                                    Feedly.markCurrentStreamAsRead ();
                                                 },
-                                                5000);
+                                                3000);
                 }
             }
             MenuItem {

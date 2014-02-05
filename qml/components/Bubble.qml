@@ -18,7 +18,7 @@ Rectangle {
 
     Text {
         text: base.value;
-        font.pixelSize: Theme.itemSizeExtraLarge;
+        font.pixelSize: Theme.fontSizeSmall;
         font.bold: false
         font.family: Theme.fontFamilyHeading;
         color: Theme.highlightColor;

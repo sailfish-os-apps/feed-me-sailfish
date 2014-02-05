@@ -127,13 +127,24 @@ class MyContent : public QObject {
     QML_PUBLIC_PROPERTY (QString,   author)
     QML_PUBLIC_PROPERTY (QString,   content)
     QML_PUBLIC_PROPERTY (QString,   link)
+    QML_PUBLIC_PROPERTY (QString,   thumbnail)
     QML_PUBLIC_PROPERTY (bool,      unread)
     QML_PUBLIC_PROPERTY (bool,      marked)
     QML_PUBLIC_PROPERTY (QDateTime, published)
     QML_PUBLIC_PROPERTY (QDateTime, updated)
     QML_PUBLIC_PROPERTY (QDateTime, crawled)
 
-public: explicit MyContent (QObject * parent = NULL) : QObject (parent) { }
+public: explicit MyContent (QObject * parent = NULL) : QObject (parent) {
+        m_entryId   = "";
+        m_streamId  = "";
+        m_title     = "";
+        m_author    = "";
+        m_content   = "";
+        m_link      = "";
+        m_thumbnail = "";
+        m_unread    = true;
+        m_marked    = false;
+    }
 };
 
 class MyFeedlyApi : public QObject {
@@ -157,14 +168,16 @@ public: // oop
     virtual ~MyFeedlyApi ();
 
 public: // methods
-    Q_INVOKABLE MyFeed     * getFeedInfo       (QString feedId);
-    Q_INVOKABLE MyCategory * getCategoryInfo   (QString categoryId);
-    Q_INVOKABLE MyContent  * getContentInfo    (QString entryId);
-    Q_INVOKABLE QString      getOAuthPageUrl   ();
-    Q_INVOKABLE QString      getStreamIdAll    ();
-    Q_INVOKABLE QString      getStreamIdMarked ();
+    Q_INVOKABLE MyFeed     * getFeedInfo             (QString feedId);
+    Q_INVOKABLE MyCategory * getCategoryInfo         (QString categoryId);
+    Q_INVOKABLE MyContent  * getContentInfo          (QString entryId);
+    Q_INVOKABLE QString      getOAuthPageUrl         ();
+    Q_INVOKABLE QString      getStreamIdAll          ();
+    Q_INVOKABLE QString      getStreamIdMarked       ();
 
-    Q_INVOKABLE void         refreshAll      ();
+    Q_INVOKABLE void         refreshAll              ();
+    Q_INVOKABLE void         markItemAsRead          (QString entryId);
+    Q_INVOKABLE void         markCurrentStreamAsRead ();
 
 public: // getters
     bool    getIsLogged        () const { return m_settings->value ("isLogged",        "").toBool   (); }

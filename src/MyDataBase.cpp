@@ -74,6 +74,12 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     m_database.setDatabaseName (QString ("%1/offlineStorage.db").arg (path));
     if (m_database.open ()) {
         qDebug ("Offline storage database opened.");
+        if (m_database.tables ().contains ("news")) {
+            QSqlQuery queryCheck (m_database);
+            if (!queryCheck.exec ("SELECT thumbnail FROM news LIMIT 1")) {
+                m_database.exec ("DROP TABLE news");
+            }
+        }
         initializeTables ();
     }
     else {
@@ -131,6 +137,7 @@ void MyFeedlyApi::initializeTables () {
                      "    author TEXT DEFAULT (''), "
                      "    content TEXT NOT NULL DEFAULT (''), "
                      "    link TEXT DEFAULT (''), "
+                     "    thumbnail TEXT DEFAULT (''), "
                      "    published INTEGER, "
                      "    crawled INTEGER, "
                      "    updated INTEGER "
@@ -356,7 +363,34 @@ void MyFeedlyApi::requestReadOperations () {
 }
 
 void MyFeedlyApi::syncAllFlags () {
-    requestReadOperations ();
+    // TODO : before pull read operation, push local ones
+    requestReadOperations (); // FIXME : do it only after all local ops are pushed
+}
+
+void MyFeedlyApi::markItemAsRead (QString entryId) {
+    qDebug () << "MyFeedlyApi::markItemAsRead :" << entryId;
+    MyContent * entry = getContentInfo (entryId);
+    if (entry) {
+        if (entry->get_unread ()) {
+            // TODO : save sync operation in db for latter push
+            QSqlQuery query (m_database);
+            query.prepare ("UPDATE news SET unread=0 WHERE entryId=:entryId");
+            query.bindValue (":entryId", entryId);
+            if (query.exec ()) {
+                entry->set_unread (false);
+            }
+        }
+    }
+}
+
+void MyFeedlyApi::markCurrentStreamAsRead () {
+    qDebug () << "MyFeedlyApi::markCurrentStreamAsRead";
+    m_database.transaction ();
+    foreach (QVariant item, m_newsStreamList) {
+        markItemAsRead (item.toMap ().value ("entryId").toString ());
+    }
+    m_database.commit ();
+    loadUnreadCounts ();
 }
 
 /******************************* CALLBACKS *****************************************/
@@ -582,18 +616,20 @@ void MyFeedlyApi::onRequestContentsReply () {
             m_database.transaction ();
             foreach (QJsonValue value, array) {
                 QJsonObject item = value.toObject ();
-                QString content = jsonPathAsVariant (item, "content/content").toString ();
-                QString summary = jsonPathAsVariant (item, "summary/content").toString ();
+                QString content   = jsonPathAsVariant (item, "content/content").toString ();
+                QString summary   = jsonPathAsVariant (item, "summary/content").toString ();
+                QString thumbnail = jsonPathAsVariant (item, "visual/url").toString ();
                 QSqlQuery query (m_database);
                 query.prepare ("INSERT OR IGNORE INTO "
-                               "news (entryId, streamId, title, author, content, link, unread, published, updated, crawled) "
-                               "VALUES (:entryId, :streamId, :title, :author, :content, :link, :unread, :published, :updated, :crawled);");
+                               "news (entryId, streamId, title, author, content, link, thumbnail, unread, published, updated, crawled) "
+                               "VALUES (:entryId, :streamId, :title, :author, :content, :link, :thumbnail, :unread, :published, :updated, :crawled);");
                 query.bindValue (":entryId",   jsonPathAsVariant (item, "id").toString ());
                 query.bindValue (":streamId",  jsonPathAsVariant (item, "origin/streamId").toString ());
-                query.bindValue (":title",     jsonPathAsVariant (item, "title").toString ());
-                query.bindValue (":author",    jsonPathAsVariant (item, "author").toString ());
+                query.bindValue (":title",     jsonPathAsVariant (item, "title").toString ().trimmed ());
+                query.bindValue (":author",    jsonPathAsVariant (item, "author").toString ().trimmed ());
                 query.bindValue (":content",   (!content.isEmpty () ? content : summary));
-                query.bindValue (":link",      jsonPathAsVariant (item, "alternate/0/href").toString ());
+                query.bindValue (":link",      jsonPathAsVariant (item, "alternate/0/href").toString ().trimmed ());
+                query.bindValue (":thumbnail", (thumbnail != "none" ? thumbnail : ""));
                 query.bindValue (":unread",    jsonPathAsVariant (item, "unread").toBool ());
                 query.bindValue (":published", jsonPathAsVariant (item, "published").toReal ());
                 query.bindValue (":updated",   jsonPathAsVariant (item, "updated").toReal ());
@@ -783,7 +819,7 @@ void MyFeedlyApi::refreshStreamModel () {
         clauseWhere.append (" unread=1 ");
     }
     QString clauseOrder (" ORDER BY published DESC ");
-    QString clauseLimit (" LIMIT 1000 ");
+    QString clauseLimit (" LIMIT 250 "); // TODO : put pagination in settings
     QString sql (clauseSelect +
                  clauseFrom +
                  (!clauseWhere.isEmpty () ? " WHERE " + clauseWhere.join (" AND ") : "") +
@@ -807,6 +843,7 @@ void MyFeedlyApi::refreshStreamModel () {
         int fieldPublished  = record.indexOf ("published");
         int fieldCrawled    = record.indexOf ("crawled");
         int fieldUpdated    = record.indexOf ("updated");
+        int fieldThumbnail  = record.indexOf ("thumbnail");
         while (query.next ()) {
             QString entryId = query.value (fieldEntryId).toString ();
             QDate date = QDateTime::fromMSecsSinceEpoch (query.value (fieldPublished).value<quint64> ()).date ();
@@ -821,6 +858,7 @@ void MyFeedlyApi::refreshStreamModel () {
             content->set_title     (query.value (fieldTitle).toString ());
             content->set_author    (query.value (fieldAuthor).toString ());
             content->set_link      (query.value (fieldLink).toString ());
+            content->set_thumbnail (query.value (fieldThumbnail).toString ());
             content->set_streamId  (query.value (fieldStreamId).toString ());
             content->set_unread    (query.value (fieldUnread).toInt () == 1);
             content->set_marked    (query.value (fieldMarked).toInt () == 1);

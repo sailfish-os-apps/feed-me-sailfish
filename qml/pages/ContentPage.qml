@@ -24,8 +24,7 @@ Page {
         if (currentNewsItem !== null) {
             currentFeedItem = Feedly.getFeedInfo (currentNewsItem.streamId);
             if (currentNewsItem.unread) {
-                //FeedlyApi.updateUnreadEntry (model.entryId);
-                currentNewsItem.unread = false;
+                Feedly.markItemAsRead (Feedly.currentEntryId);
             }
             htmlView.text = formatBody (currentNewsItem.content)
             repeaterImages.model = extractImages (currentNewsItem.content);

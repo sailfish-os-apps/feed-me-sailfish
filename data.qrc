@@ -21,5 +21,7 @@
         <file>qml/img/fetching.svg</file>
         <file>qml/img/pending.png</file>
         <file>qml/img/pending.svg</file>
+        <file>qml/img/noimage.png</file>
+        <file>qml/img/noimage.svg</file>
     </qresource>
 </RCC>
