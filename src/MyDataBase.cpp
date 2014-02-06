@@ -724,7 +724,7 @@ void MyFeedlyApi::onRequestContentsReply () {
                 query.bindValue (":streamId",  jsonPathAsVariant (item, "origin/streamId", "").toString ());
                 query.bindValue (":title",     jsonPathAsVariant (item, "title", "").toString ().trimmed ());
                 query.bindValue (":author",    jsonPathAsVariant (item, "author", "").toString ().trimmed ());
-                query.bindValue (":content",   (!content.isEmpty () ? content : summary));
+                query.bindValue (":content",   (content.size () >= summary.size () ? content : summary));
                 query.bindValue (":link",      jsonPathAsVariant (item, "alternate/0/href", "").toString ().trimmed ());
                 query.bindValue (":thumbnail", (thumbnail != "none" ? thumbnail : ""));
                 query.bindValue (":unread",    jsonPathAsVariant (item, "unread", true).toBool ());
@@ -1051,9 +1051,9 @@ void MyFeedlyApi::refreshStreamModel () {
                 content->set_streamId  (query.value (fieldStreamId).toString ());
                 content->set_unread    (query.value (fieldUnread).toInt () == 1);
                 content->set_marked    (query.value (fieldMarked).toInt () == 1);
-                content->set_updated   (query.value (fieldUpdated).toDateTime ());
-                content->set_crawled   (query.value (fieldCrawled).toDateTime ());
-                content->set_published (query.value (fieldPublished).toDateTime ());
+                content->set_updated   (query.value (fieldUpdated).value<quint64> ());
+                content->set_crawled   (query.value (fieldCrawled).value<quint64> ());
+                content->set_published (query.value (fieldPublished).value<quint64> ());
             }
             qApp->processEvents ();
         }

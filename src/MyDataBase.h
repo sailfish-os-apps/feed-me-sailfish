@@ -194,9 +194,10 @@ class MyContent : public QObject {
     QML_PUBLIC_PROPERTY (QString,   thumbnail)
     QML_PUBLIC_PROPERTY (bool,      unread)
     QML_PUBLIC_PROPERTY (bool,      marked)
-    QML_PUBLIC_PROPERTY (QDateTime, published)
-    QML_PUBLIC_PROPERTY (QDateTime, updated)
-    QML_PUBLIC_PROPERTY (QDateTime, crawled)
+    QML_PUBLIC_PROPERTY (quint64,   published)
+    QML_PUBLIC_PROPERTY (quint64,   updated)
+    QML_PUBLIC_PROPERTY (quint64,   crawled)
+    QML_PUBLIC_PROPERTY (quint64,   cached)
 
 public: explicit MyContent (QObject * parent = NULL) : QObject (parent) {
         m_entryId   = "";

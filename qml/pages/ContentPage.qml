@@ -14,13 +14,14 @@ Page {
     property ContentInfo currentNewsItem : Feedly.getContentInfo (Feedly.currentEntryId);
     property FeedInfo    currentFeedItem : null;
     onCurrentNewsItemChanged: {
-        view.contentY = 0;
-        currentFeedItem = null;
+        view.contentY        = 0;
+        currentFeedItem      = null;
         repeaterImages.model = 0;
-        htmlView.text = "";
+        htmlView.text        = "";
         imgStreamIcon.source = "";
-        labelSource.text = "";
-        dialogImg.uri = "";
+        labelSource.text     = "";
+        labelTimestamp.text  = "";
+        dialogImg.uri        = "";
         if (currentNewsItem !== null) {
             currentFeedItem = Feedly.getFeedInfo (currentNewsItem.streamId);
             if (currentNewsItem.unread) {
@@ -29,7 +30,8 @@ Page {
             htmlView.text = formatBody (currentNewsItem.content)
             repeaterImages.model = extractImages (currentNewsItem.content);
             imgStreamIcon.source = googleFaviconWebServiceUrl.arg (currentFeedItem.website);
-            labelSource.text =  currentFeedItem.title + (currentNewsItem.author !== "" ? "  (<b>%1</b>)".arg (currentNewsItem.author) : "");
+            labelSource.text =  "<b>" + currentFeedItem.title + "</b>" + (currentNewsItem.author !== "" ? "  (%1)".arg (currentNewsItem.author) : "");
+            labelTimestamp.text = Qt.formatDateTime (new Date (currentNewsItem.published), Qt.DefaultLocaleLongDate);
         }
     }
 
@@ -140,13 +142,26 @@ Page {
             }
 
             Text {
-                text: (currentNewsItem ? "\t\t\t" + currentNewsItem.title : "");
+                text: (currentNewsItem ? "\t\t\t\t" + currentNewsItem.title : "");
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere;
                 textFormat: Text.PlainText;
                 color: Theme.highlightColor;
                 font.pixelSize: Theme.fontSizeMedium;
                 font.family: Theme.fontFamilyHeading;
                 horizontalAlignment: Text.AlignRight;
+                anchors {
+                    left: parent.left;
+                    right: parent.right;
+                }
+            }
+            Text {
+                id: labelTimestamp;
+                color: Theme.secondaryColor;
+                textFormat: Text.PlainText;
+                font {
+                    pixelSize: Theme.fontSizeExtraSmall;
+                    family: Theme.fontFamilyHeading;
+                }
                 anchors {
                     left: parent.left;
                     right: parent.right;
@@ -197,9 +212,7 @@ Page {
                     left: parent.left;
                     right: parent.right;
                 }
-                onLinkActivated: {
-                    Qt.openUrlExternally (link);
-                }
+                onLinkActivated: { Qt.openUrlExternally (link); }
 
                 Repeater {
                     id: repeaterImages;

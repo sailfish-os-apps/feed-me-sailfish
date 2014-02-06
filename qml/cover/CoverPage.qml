@@ -16,7 +16,7 @@ CoverBackground {
         id: lblCounter;
         text: (Feedly.isLogged ? globalCategory.counter : "");
         font.pixelSize: Theme.fontSizeLarge;
-        font.family: Theme.fontFamilyHeading
+        font.family: Theme.fontFamilyHeading;
         color: Theme.highlightColor;
         anchors {
             top: parent.top;
@@ -30,7 +30,7 @@ CoverBackground {
         text: (Feedly.isLogged ? qsTr ("news") : qsTr ("Please log in"));
         fontSizeMode: Text.HorizontalFit;
         font.pixelSize: Theme.fontSizeSmall;
-        font.family: Theme.fontFamilyHeading
+        font.family: Theme.fontFamilyHeading;
         color: Theme.highlightColor;
         anchors {
             baseline: lblCounter.baseline;
