@@ -14,7 +14,7 @@ CoverBackground {
     }
     Label {
         id: lblCounter;
-        text: globalCategory.counter;
+        text: (Feedly.isLogged ? globalCategory.counter : "");
         font.pixelSize: Theme.fontSizeLarge;
         font.family: Theme.fontFamilyHeading
         color: Theme.highlightColor;
@@ -27,7 +27,7 @@ CoverBackground {
         property CategoryInfo globalCategory : Feedly.getCategoryInfo (Feedly.getStreamIdAll ());
     }
     Label {
-        text: qsTr ("news");
+        text: (Feedly.isLogged ? qsTr ("news") : qsTr ("Please log in"));
         fontSizeMode: Text.HorizontalFit;
         font.pixelSize: Theme.fontSizeSmall;
         font.family: Theme.fontFamilyHeading
@@ -40,17 +40,37 @@ CoverBackground {
             rightMargin: Theme.paddingLarge;
         }
     }
+    Item {
+        height: (parent.height / 4);
+        visible: Feedly.isPolling;
+        anchors {
+            left: parent.left;
+            right: parent.right;
+            bottom: parent.bottom;
+        }
+
+        Image {
+            source: "image://theme/graphic-busyindicator-medium?%1".arg (Theme.highlightColor.toString ());
+            transformOrigin: Item.Center;
+            anchors.centerIn: parent;
+
+            NumberAnimation on rotation {
+                from: 0;
+                to: 360;
+                duration: 2000;
+                running: (Feedly.isPolling && !Qt.application.active);
+                loops: Animation.Infinite;
+            }
+        }
+    }
     CoverActionList {
         id: coverAction;
+        enabled: (!Feedly.isOffline && Feedly.isLogged && !Feedly.isPolling);
         iconBackground: false;
 
         CoverAction {
             iconSource: "image://theme/icon-cover-sync";
-            onTriggered: {
-                // TODO : refresh / sync all
-            }
+            onTriggered: { Feedly.refreshAll (); }
         }
     }
 }
-
-
