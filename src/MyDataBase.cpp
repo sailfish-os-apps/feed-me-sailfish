@@ -786,7 +786,6 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
             }
             m_database.commit ();
             qApp->processEvents ();
-            loadUnreadCounts ();
             if (!m_pollQueue.isEmpty ()) {
                 set_isPolling (true);
                 set_currentStatusMsg (tr ("Refreshing feeds..."));
@@ -807,6 +806,7 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
         qWarning () << "Network error on read operations request :"
                     << reply->errorString ();
     }
+    loadUnreadCounts ();
 }
 
 void MyFeedlyApi::onPushLocalOperationsReply () {
@@ -949,9 +949,21 @@ void MyFeedlyApi::loadUnreadCounts () {
         }
     }
     qApp->processEvents ();
+    //////////////////// GLOBAL UNREAD COUNT /////////////////////////
     MyCategory * categoryAll = getCategoryInfo (streamIdAll);
     categoryAll->set_counter (total);
-    // TODO : compute marked counter
+    //////////////////// MARKED UNREAD COUNT ////////////////////////
+    QSqlQuery queryMarked (m_database);
+    QString sqlMarked ("SELECT COUNT (entryId) AS unreadcount FROM news WHERE marked=1 AND unread=1");
+    if (queryMarked.exec (sqlMarked) && queryMarked.next ()) {
+        int unreadCount = queryMarked.value (queryMarked.record ().indexOf ("unreadcount")).toInt ();
+        MyCategory * categoryMarked = getCategoryInfo (streamIdMarked);
+        categoryMarked->set_counter (unreadCount);
+    }
+    else {
+        qWarning () << "Failed to load marked unread counts :"
+                    << queryMarked.lastError ().text ();
+    }
     streamIds.clear ();
 }
 
