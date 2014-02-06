@@ -146,7 +146,7 @@ Page {
                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere;
                 textFormat: Text.PlainText;
                 color: Theme.highlightColor;
-                font.pixelSize: Theme.fontSizeMedium;
+                font.pixelSize: Theme.fontSizeLarge;
                 font.family: Theme.fontFamilyHeading;
                 horizontalAlignment: Text.AlignRight;
                 anchors {
@@ -158,6 +158,7 @@ Page {
                 id: labelTimestamp;
                 color: Theme.secondaryColor;
                 textFormat: Text.PlainText;
+                horizontalAlignment: Text.AlignHCenter;
                 font {
                     pixelSize: Theme.fontSizeExtraSmall;
                     family: Theme.fontFamilyHeading;
@@ -285,7 +286,7 @@ Page {
                         }
                         Item {
                             id: bar;
-                            height: 40;
+                            height: 30;
                             anchors {
                                 top: parent.top;
                                 left: parent.left
@@ -294,7 +295,7 @@ Page {
 
                             Rectangle {
                                 color: "black";
-                                opacity: 0.65;
+                                opacity: 0.45;
                                 anchors.fill: parent;
                             }
                             Text {

@@ -17,7 +17,7 @@ CoverBackground {
         text: (Feedly.isLogged ? globalCategory.counter : "");
         font.pixelSize: Theme.fontSizeLarge;
         font.family: Theme.fontFamilyHeading;
-        color: Theme.highlightColor;
+        color: Theme.primaryColor;
         anchors {
             top: parent.top;
             left: parent.left;
@@ -41,7 +41,7 @@ CoverBackground {
         }
     }
     Item {
-        height: (parent.height / 4);
+        height: (parent.height / 3);
         visible: Feedly.isPolling;
         anchors {
             left: parent.left;

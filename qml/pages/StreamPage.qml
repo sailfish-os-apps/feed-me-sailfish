@@ -25,14 +25,13 @@ Page {
         currentIndex: -1;
         model: Feedly.newsStreamList;
         header: Column {
-            spacing: Theme.paddingSmall;
             anchors {
-                left: (parent ? parent.left : undefined);
+                left:  (parent ? parent.left  : undefined);
                 right: (parent ? parent.right : undefined);
             }
 
             Item {
-                height: Theme.paddingMedium;
+                height: Theme.paddingLarge;
                 width: parent.width;
             }
             Text {
@@ -247,7 +246,7 @@ Page {
         }
         anchors {
             fill: btnBackToTop;
-            topMargin: -btnBackToTop.height;
+            topMargin: (-btnBackToTop.height / 2);
         }
     }
     Button {

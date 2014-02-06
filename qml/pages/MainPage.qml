@@ -366,7 +366,7 @@ Page {
         }
         anchors {
             fill: btnBackToTop;
-            topMargin: -btnBackToTop.height;
+            topMargin: (-btnBackToTop.height / 2);
         }
     }
     Button {
