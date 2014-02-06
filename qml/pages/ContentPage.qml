@@ -319,6 +319,16 @@ Page {
         }
         VerticalScrollDecorator { }
     }
+    Rectangle {
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba (0, 0, 0, 0); }
+            GradientStop { position: 1.0; color: Qt.rgba (0, 0, 0, 1); }
+        }
+        anchors {
+            fill: layoutButtons;
+            topMargin: (-layoutButtons.height / 2);
+        }
+    }
     Row {
         id: layoutButtons;
         anchors {
