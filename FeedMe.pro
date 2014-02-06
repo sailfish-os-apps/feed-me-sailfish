@@ -15,7 +15,6 @@ SOURCES     += \
 HEADERS     += \
     src/MyDataBase.h
 
-
 OTHER_FILES += \
     harbour-feedme.desktop \
     harbour-feedme.png \
@@ -23,11 +22,10 @@ OTHER_FILES += \
     rpm/harbour-feedme.yaml \
     qml/harbour-feedme.qml \
     qml/Ajax.js \
-    qml/cover/CoverPage.qml \
-    qml/pages/StreamPage.qml \
-    qml/pages/MainPage.qml \
-    qml/pages/ContentPage.qml \
-    qml/components/Bubble.qml
+    qml/cover/* \
+    qml/pages/* \
+    qml/components/* \
+    qml/img/*
 
 RESOURCES   += \
     data.qrc

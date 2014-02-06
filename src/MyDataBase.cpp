@@ -767,8 +767,7 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
             foreach (QJsonValue feed, feeds) {
                 QJsonObject feedObj = feed.toObject ();
                 QSqlQuery feedQuery (m_database);
-                feedQuery.prepare ("UPDATE news SET unread=0 "
-                                   "WHERE streamId=:streamId AND crawled<:asOf");
+                feedQuery.prepare ("UPDATE news SET unread=0 WHERE streamId=:streamId AND crawled<:asOf");
                 feedQuery.bindValue (":streamId", feedObj.value ("id").toString ());
                 feedQuery.bindValue (":asOf", feedObj.value ("asOf").toDouble ());
                 feedQuery.exec ();
@@ -779,8 +778,7 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
             m_database.transaction ();
             foreach (QJsonValue entry, entries) {
                 QSqlQuery entryQuery (m_database);
-                entryQuery.prepare ("UPDATE news SET unread=0 "
-                                    "WHERE entryId=:entryId");
+                entryQuery.prepare ("UPDATE news SET unread=0 WHERE entryId=:entryId");
                 entryQuery.bindValue (":entryId", entry.toString ());
                 entryQuery.exec ();
             }
@@ -893,8 +891,7 @@ void MyFeedlyApi::loadUnreadCounts () {
     QStringList streamIds;
     ///// FEEDS UNREAD COUNTS /////
     QSqlQuery queryFeeds (m_database);
-    QString sqlFeeds ("SELECT COUNT (entryId) AS unreadcount,streamId FROM news "
-                      "WHERE unread=1 GROUP BY streamId;");
+    QString sqlFeeds ("SELECT COUNT (entryId) AS unreadcount,streamId FROM news WHERE unread=1 GROUP BY streamId;");
     if (queryFeeds.exec (sqlFeeds)) {
         QSqlRecord record = queryFeeds.record ();
         int fieldUnreadCount = record.indexOf ("unreadcount");
