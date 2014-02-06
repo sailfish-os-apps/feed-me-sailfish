@@ -89,12 +89,6 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     m_database.setDatabaseName (QString ("%1/offlineStorage.db").arg (path));
     if (m_database.open ()) {
         qDebug ("Offline storage database opened.");
-        if (m_database.tables ().contains ("news")) {
-            QSqlQuery queryCheck (m_database);
-            if (!queryCheck.exec ("SELECT thumbnail,cached FROM news LIMIT 1")) {
-                m_database.exec ("DROP TABLE news");
-            }
-        }
         initializeTables ();
     }
     else {
@@ -480,6 +474,7 @@ void MyFeedlyApi::onCurrentStreamIdChanged (QString arg) {
     set_currentPageCount (0);
     set_streamMostRecentMSecs (CURR_MSECS);
     m_newsStreamList->deleteAll ();
+    qApp->processEvents ();
     refreshStreamModel ();
 }
 
@@ -639,7 +634,7 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
     Q_ASSERT (reply);
     if (reply->error () == QNetworkReply::NoError) {
         QByteArray data = reply->readAll ();
-        qDebug () << data;
+        //qDebug () << data;
         QJsonParseError error;
         QJsonDocument json = QJsonDocument::fromJson (data, &error);
         if (!json.isNull () && json.isArray ()) {
@@ -863,7 +858,7 @@ void MyFeedlyApi::loadSubscriptions () {
             entry.insert ("categoryId", (!categoryId.isEmpty () ? categoryId : streamIdUncategorized));
             entry.insert ("feedId",     feedId);
             m_subscriptionsList->append (entry);
-            qDebug () << ">>>" << entry;
+            //qDebug () << ">>>" << entry;
             ///// CATEGORY INFO /////
             if (!categoryId.isEmpty ()) {
                 MyCategory * category = getCategoryInfo (categoryId);

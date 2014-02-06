@@ -139,9 +139,8 @@ Page {
         footer: Item {
             height: btnBackToTop.height;
             anchors {
-                left: parent.left;
-                right: parent.right;
-                margins: 0;
+                left:  (parent ? parent.left  : undefined);
+                right: (parent ? parent.right : undefined);
             }
         }
         anchors {

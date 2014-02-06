@@ -108,9 +108,8 @@ Page {
         footer: Item {
             height: btnBackToTop.height;
             anchors {
-                left: parent.left;
-                right: parent.right;
-                margins: 0;
+                left:  (parent ? parent.left  : undefined);
+                right: (parent ? parent.right : undefined);
             }
         }
         section {
@@ -118,23 +117,24 @@ Page {
             delegate: ListItem {
                 id: itemCategory;
                 height: contentHeight + (menuOpen ? _menuItem.height : 0);
-//                menu: ContextMenu {
-//                    MenuItem {
-//                        text: qsTr ("Force refresh this category");
-//                        onClicked: {
-//                            Feedly.refreshStream (section);
-//                        }
-//                    }
-//                    MenuItem {
-//                        text: qsTr ("Edit this category [TODO]");
-//                        onClicked: {
-//                            // dialog to edit the category
-//                        }
-//                    }
-//                }
+                menu: ContextMenu {
+                    MenuItem {
+                        text: qsTr ("Force refresh this category");
+                        onClicked: {
+                            Feedly.refreshStream (section);
+                        }
+                    }
+                    MenuItem {
+                        text: qsTr ("Edit this category [TODO]");
+                        onClicked: {
+                            // dialog to edit the category
+                        }
+                    }
+                }
                 onClicked: {
-                    Feedly.currentStreamId = categoryInfo.streamId;
+                    Feedly.currentStreamId = "";
                     pageStack.push (streamPage);
+                    Feedly.currentStreamId = categoryInfo.streamId;
                 }
                 ListView.onAdd: AddAnimation { target: itemCategory; }
 
