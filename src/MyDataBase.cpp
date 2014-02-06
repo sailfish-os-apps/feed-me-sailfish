@@ -650,9 +650,9 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
                 query.bindValue (":feedId", feedId);
                 query.exec ();
                 feeds << feedId;
-                qApp->processEvents ();
             }
             m_database.commit ();
+            qApp->processEvents ();
             ///// UPDATE ALL ITEMS /////
             m_database.transaction ();
             foreach (QJsonValue value, array) {
@@ -667,15 +667,13 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
                 query.bindValue (":categoryId", jsonPathAsVariant (item, "categories/0/id", "").toString ());
                 query.bindValue (":feedId",     jsonPathAsVariant (item, "id", "").toString ());
                 query.exec ();
-                qApp->processEvents ();
             }
             m_database.commit ();
+            qApp->processEvents ();
             ///// REMOVE OLD ITEMS /////
             m_database.transaction ();
-            QSqlQuery query (m_database);
-            query.prepare (QString ("DELETE FROM feeds "
-                                    "WHERE feedId NOT IN (\"%1\");").arg (feeds.join ("\", \"")));
-            query.exec ();
+            m_database.exec (QString ("DELETE FROM news  WHERE streamId NOT IN (\"%1\");").arg (feeds.join ("\", \"")));
+            m_database.exec (QString ("DELETE FROM feeds WHERE feedId   NOT IN (\"%1\");").arg (feeds.join ("\", \"")));
             m_database.commit ();
             //qDebug () << "feeds=" << feeds;
             loadSubscriptions ();
@@ -697,6 +695,13 @@ void MyFeedlyApi::onRequestContentsReply () {
     qDebug () << "onRequestContentsReply";
     QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
     Q_ASSERT (reply);
+    if (!m_pollQueue.isEmpty ()) {
+        m_timer->start (10); // do next quickly
+    }
+    else {
+        set_currentStatusMsg (tr ("Idle."));
+        set_isPolling (false);
+    }
     if (reply->error () == QNetworkReply::NoError) {
         QByteArray data = reply->readAll ();
         QJsonParseError error;
@@ -728,9 +733,9 @@ void MyFeedlyApi::onRequestContentsReply () {
                 query.bindValue (":crawled",   jsonPathAsVariant (item, "crawled", 0).toReal ());
                 query.bindValue (":cached",    CURR_MSECS);
                 query.exec ();
-                qApp->processEvents ();
             }
             m_database.commit ();
+            qApp->processEvents ();
         }
         else {
             qWarning () << "Failed to parse contents from JSON response :"
@@ -743,13 +748,6 @@ void MyFeedlyApi::onRequestContentsReply () {
     else {
         qWarning () << "Network error on contents request :"
                     << reply->errorString ();
-    }
-    if (!m_pollQueue.isEmpty ()) {
-        m_timer->start (100); // do next quickly
-    }
-    else {
-        set_currentStatusMsg (tr ("Idle."));
-        set_isPolling (false);
     }
 }
 
@@ -774,9 +772,9 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
                 feedQuery.bindValue (":streamId", feedObj.value ("id").toString ());
                 feedQuery.bindValue (":asOf", feedObj.value ("asOf").toDouble ());
                 feedQuery.exec ();
-                qApp->processEvents ();
             }
             m_database.commit ();
+            qApp->processEvents ();
             QJsonArray entries = item.value ("entries").toArray ();
             m_database.transaction ();
             foreach (QJsonValue entry, entries) {
@@ -785,9 +783,9 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
                                     "WHERE entryId=:entryId");
                 entryQuery.bindValue (":entryId", entry.toString ());
                 entryQuery.exec ();
-                qApp->processEvents ();
             }
             m_database.commit ();
+            qApp->processEvents ();
             loadUnreadCounts ();
             if (!m_pollQueue.isEmpty ()) {
                 set_isPolling (true);
@@ -826,6 +824,7 @@ void MyFeedlyApi::onPushLocalOperationsReply () {
             query.exec ();
         }
         m_database.commit ();
+        qApp->processEvents ();
         requestReadOperations ();
     }
     else {
@@ -879,8 +878,8 @@ void MyFeedlyApi::loadSubscriptions () {
             feed->set_categoryId (categoryId);
             feed->set_title   (query.value (fieldFeedTitle).toString ());
             feed->set_website (query.value (fieldFeedWebsite).toString ());
-            qApp->processEvents ();
         }
+        qApp->processEvents ();
         //qDebug () << "categories list model=" << categories;
     }
     else {
@@ -907,8 +906,8 @@ void MyFeedlyApi::loadUnreadCounts () {
             feed->set_counter (unreadCount);
             streamIds << feedId;
             total += unreadCount;
-            qApp->processEvents ();
         }
+        qApp->processEvents ();
     }
     else {
         qWarning () << "Failed to load feeds unread counts :"
@@ -918,7 +917,6 @@ void MyFeedlyApi::loadUnreadCounts () {
         if (!streamIds.contains (streamId)) {
             getFeedInfo (streamId)->set_counter (0);
         }
-        qApp->processEvents ();
     }
     streamIds.clear ();
     ///// CATEGORIES UNREAD COUNTS /////
@@ -938,8 +936,8 @@ void MyFeedlyApi::loadUnreadCounts () {
             MyCategory * category = getCategoryInfo (categoryId);
             category->set_counter (unreadCount);
             streamIds << categoryId;
-            qApp->processEvents ();
         }
+        qApp->processEvents ();
     }
     else {
         qWarning () << "Failed to load categories unread counts :"
@@ -949,8 +947,8 @@ void MyFeedlyApi::loadUnreadCounts () {
         if (!streamIds.contains (streamId)) {
             getCategoryInfo (streamId)->set_counter (0);
         }
-        qApp->processEvents ();
     }
+    qApp->processEvents ();
     MyCategory * categoryAll = getCategoryInfo (streamIdAll);
     categoryAll->set_counter (total);
     // TODO : compute marked counter
@@ -1044,8 +1042,8 @@ void MyFeedlyApi::refreshStreamModel () {
                 content->set_updated   (query.value (fieldUpdated).toDateTime ());
                 content->set_crawled   (query.value (fieldCrawled).toDateTime ());
                 content->set_published (query.value (fieldPublished).toDateTime ());
-                qApp->processEvents ();
             }
+            qApp->processEvents ();
         }
         else {
             qWarning () << "Failed to load stream :"

@@ -1,14 +1,14 @@
 Name: harbour-feedme
 Summary: Feed'me
-Version: 0.3
-Release: 4
+Version: 0.4
+Release: 1
 Group: Qt/Qt
 License: LGPLv2
 URL: http://gitorious.org/apps-4-sailfish/feed-me
 Sources:
 - '%{name}-%{version}.tar.bz2'
 Description: |-
-  Read your daily news, easily and quickly.
+  Read your daily news, easily and quickly, and cache for later.
 Configure: none
 Builder: qtc5
 PkgConfigBR:
