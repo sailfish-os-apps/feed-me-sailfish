@@ -235,17 +235,20 @@ Page {
             view.contentY = save;
         }
     }
-    OpacityRampEffect {
-        sourceItem: view;
-        enabled: (!view.atYEnd);
-        direction: OpacityRamp.TopToBottom;
-        offset: 0.65;
-        slope: 1.35;
-        anchors.fill: view;
-    }
     ViewPlaceholder {
         text: qsTr ("No news in this stream.");
         enabled: (view.count == 0);
+    }
+    Rectangle {
+        visible: btnBackToTop.visible;
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba (0, 0, 0, 0); }
+            GradientStop { position: 1.0; color: Qt.rgba (0, 0, 0, 1); }
+        }
+        anchors {
+            fill: btnBackToTop;
+            topMargin: -btnBackToTop.height;
+        }
     }
     Button {
         id: btnBackToTop;

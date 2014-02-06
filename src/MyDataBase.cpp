@@ -47,10 +47,10 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     m_currentStatusMsg = "";
     m_streamMostRecentMSecs = 0;
     QStringList subscriptionsRoles;
-    subscriptionsRoles << "feedId" << "categoryId",
+    subscriptionsRoles << "feedId" << "categoryId";
     m_subscriptionsList = new VariantModel (subscriptionsRoles, this);
     QStringList streamRoles;
-    streamRoles << "entryId" << "date",
+    streamRoles << "entryId" << "date";
     m_newsStreamList = new VariantModel (streamRoles, this);
     ///// SETTINGS /////
     QSettings::setDefaultFormat (QSettings::IniFormat);
@@ -421,7 +421,7 @@ void MyFeedlyApi::logoutAndSweepAll () {
     set_isOffline          (true);
     set_currentStreamId    ("");
     set_currentEntryId     ("");
-    m_newsStreamList->deleteAll ();
+    m_newsStreamList->deleteAll    ();
     m_subscriptionsList->deleteAll ();
     qApp->processEvents    ();
     m_database.transaction ();
@@ -837,6 +837,7 @@ void MyFeedlyApi::onPushLocalOperationsReply () {
 /******************************* FROM DB *****************************************/
 
 void MyFeedlyApi::loadSubscriptions () {
+    QStringList categories;
     m_subscriptionsList->deleteAll ();
     QSqlQuery query (m_database);
     QString sql ("SELECT feeds.*,categories.label "
@@ -853,14 +854,23 @@ void MyFeedlyApi::loadSubscriptions () {
         while (query.next ()) {
             QString feedId     = query.value (fieldFeedId).toString ();
             QString categoryId = query.value (fieldCategoryId).toString ();
+            if (categoryId.isNull () || categoryId.isEmpty ()) {
+                categoryId = streamIdUncategorized;
+            }
+            //qDebug () << "categoryId >>>" << categoryId;
             ///// MODEL ENTRY /////
             QVariantMap entry;
-            entry.insert ("categoryId", (!categoryId.isEmpty () ? categoryId : streamIdUncategorized));
-            entry.insert ("feedId",     feedId);
+            entry.insert ("categoryId", categoryId);
+            if (!categories.contains (categoryId)) {
+                entry.insert ("feedId", "");
+                m_subscriptionsList->append (entry);
+                categories.append (categoryId);
+            }
+            entry.insert ("feedId", feedId);
             m_subscriptionsList->append (entry);
-            //qDebug () << ">>>" << entry;
+            //qDebug () << "entry >>>" << entry;
             ///// CATEGORY INFO /////
-            if (!categoryId.isEmpty ()) {
+            if (categoryId != streamIdUncategorized) {
                 MyCategory * category = getCategoryInfo (categoryId);
                 category->set_label (query.value (fieldCategoryLabel).toString ());
             }
@@ -871,6 +881,7 @@ void MyFeedlyApi::loadSubscriptions () {
             feed->set_website (query.value (fieldFeedWebsite).toString ());
             qApp->processEvents ();
         }
+        //qDebug () << "categories list model=" << categories;
     }
     else {
         qWarning () << "Failed to load subscriptions :"
@@ -1055,6 +1066,10 @@ int VariantModel::count () const {
     return m_items.size ();
 }
 
+int VariantModel::roleId (QString roleName) const {
+    return m_roles.key (roleName.toLocal8Bit ());
+}
+
 void VariantModel::prepend (QVariantMap item) {
     beginInsertRows (QModelIndex (), 0, 0);
     m_items.prepend (item);
@@ -1075,7 +1090,7 @@ void VariantModel::deleteAll () {
 
 QVariantMap VariantModel::valueAt (int idx) const {
     QVariantMap ret;
-    if (idx > 0 && idx < count ()) {
+    if (idx >= 0 && idx < count ()) {
         ret = m_items.at (idx);
     }
     return ret;
@@ -1086,13 +1101,8 @@ int VariantModel::rowCount (const QModelIndex & parent) const {
     return count ();
 }
 
-QVariant VariantModel::data (const QModelIndex & index, int role) const {
-    QVariant ret;
-    int idx = index.row ();
-    if (idx > 0 && idx < count ()) {
-        ret.setValue (m_items.at (idx).value (QString::fromLocal8Bit (m_roles.value (role))));
-    }
-    return ret;
+QVariant VariantModel::data (const QModelIndex & index, int role) const {   
+    return valueAt (index.row ()).value (QString::fromLocal8Bit (m_roles.value (role)));
 }
 
 QHash<int, QByteArray> VariantModel::roleNames() const {

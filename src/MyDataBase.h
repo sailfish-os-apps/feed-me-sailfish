@@ -25,6 +25,7 @@
 #include <QAbstractProxyModel>
 #include <QAbstractItemModel>
 #include <QAbstractListModel>
+#include <QSortFilterProxyModel>
 #include <QVariant>
 #include <QMetaEnum>
 #include <QMetaObject>
@@ -125,11 +126,12 @@ public:
     explicit VariantModel (QStringList roles, QObject * parent = NULL);
 
 public:
-    int count () const;
-    void append  (QVariantMap item);
-    void prepend (QVariantMap item);
-    void deleteAll ();
-    QVariantMap valueAt (int idx) const;
+    Q_INVOKABLE int  count   () const;
+    Q_INVOKABLE int  roleId  (QString roleName) const;
+    Q_INVOKABLE void append  (QVariantMap item);
+    Q_INVOKABLE void prepend (QVariantMap item);
+    Q_INVOKABLE void deleteAll ();
+    Q_INVOKABLE QVariantMap valueAt (int idx) const;
 
     // QAbstractItemModel interface
     int rowCount (const QModelIndex & parent = QModelIndex ()) const;

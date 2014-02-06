@@ -4,15 +4,16 @@
 #include "MyDataBase.h"
 
 int main (int argc, char * argv []){
-    qmlRegisterType            <QTimer>              ("harbour.feedme.myQtCoreImports", 5, 1, "PreciseTimer");
-    qmlRegisterUncreatableType <QAbstractItemModel>  ("harbour.feedme.myQtCoreImports", 5, 1, "AbstractItemModel", "");
-    qmlRegisterUncreatableType <QAbstractProxyModel> ("harbour.feedme.myQtCoreImports", 5, 1, "AbstractProxyMode", "");
-    qmlRegisterUncreatableType <QQmlPropertyMap>     ("harbour.feedme.myQtCoreImports", 5, 1, "QmlPropertyMap", "");
-    qmlRegisterUncreatableType <VariantModel>        ("harbour.feedme.myQtCoreImports", 5, 1, "VariantModel", "");
-    qmlRegisterUncreatableType <MyFeedlyApi>         ("harbour.feedme.myQtCoreImports", 5, 1, "FeedlyApi", "");
-    qmlRegisterType            <MyCategory>          ("harbour.feedme.myQtCoreImports", 5, 1, "CategoryInfo");
-    qmlRegisterType            <MyFeed>              ("harbour.feedme.myQtCoreImports", 5, 1, "FeedInfo");
-    qmlRegisterType            <MyContent>           ("harbour.feedme.myQtCoreImports", 5, 1, "ContentInfo");
+    qmlRegisterUncreatableType <QAbstractItemModel>    ("harbour.feedme.myQtCoreImports", 5, 1, "AbstractItemModel", "");
+    qmlRegisterUncreatableType <QAbstractProxyModel>   ("harbour.feedme.myQtCoreImports", 5, 1, "AbstractProxyModel", "");
+    qmlRegisterUncreatableType <QQmlPropertyMap>       ("harbour.feedme.myQtCoreImports", 5, 1, "QmlPropertyMap", "");
+    qmlRegisterUncreatableType <VariantModel>          ("harbour.feedme.myQtCoreImports", 5, 1, "VariantModel", "");
+    qmlRegisterUncreatableType <MyFeedlyApi>           ("harbour.feedme.myQtCoreImports", 5, 1, "FeedlyApi", "");
+    qmlRegisterType            <QSortFilterProxyModel> ("harbour.feedme.myQtCoreImports", 5, 1, "SortFilterProxy");
+    qmlRegisterType            <QTimer>                ("harbour.feedme.myQtCoreImports", 5, 1, "PreciseTimer");
+    qmlRegisterType            <MyCategory>            ("harbour.feedme.myQtCoreImports", 5, 1, "CategoryInfo");
+    qmlRegisterType            <MyFeed>                ("harbour.feedme.myQtCoreImports", 5, 1, "FeedInfo");
+    qmlRegisterType            <MyContent>             ("harbour.feedme.myQtCoreImports", 5, 1, "ContentInfo");
     QGuiApplication * app = SailfishApp::application (argc, argv);
     app->setApplicationName ("FeedMe");
     app->setOrganizationName ("TheBootroo");
