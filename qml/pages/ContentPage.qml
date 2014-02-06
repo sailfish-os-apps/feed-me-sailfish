@@ -91,8 +91,7 @@ Page {
             top: parent.top;
             left: parent.left;
             right: parent.right;
-            bottom: parent.bottom;
-            bottomMargin: (panelStatus.expanded ? panelStatus.height : 0);
+            bottom: layoutButtons.top;
         }
 
         PullDownMenu {
@@ -320,6 +319,34 @@ Page {
         }
         VerticalScrollDecorator { }
     }
+    Row {
+        id: layoutButtons;
+        anchors {
+            left: parent.left;
+            right: parent.right;
+            bottom: parent.bottom;
+            bottomMargin: (panelStatus.expanded ? panelStatus.height : 0);
+        }
+
+        property real itemWidth : ((width + spacing) / 2) -spacing;
+
+        Button {
+            text: qsTr ("Previous [TODO]");
+            enabled: false;
+            width: parent.itemWidth;
+            onClicked: {
+
+            }
+        }
+        Button {
+            text: qsTr ("Next [TODO]");
+            enabled: false;
+            width: parent.itemWidth;
+            onClicked: {
+
+            }
+        }
+    }
     Item {
         id: dialogImg;
         scale: (uri !== "" ? 1.0 : 0.0);
@@ -350,13 +377,23 @@ Page {
                 width: Math.max (imgView.width, flickerImg.width);
                 height: Math.max (imgView.height, flickerImg.height);
 
-                Image {
+                AnimatedImage {
                     id: imgView;
                     asynchronous: true;
                     cache: true;
                     source: dialogImg.uri;
                     fillMode: Image.Pad;
                     anchors.centerIn: parent;
+                    onStatusChanged: {
+                        if (status === AnimatedImage.Ready) {
+                            playing = true;
+                        }
+                    }
+                    onPlayingChanged: {
+                        if (!playing && frameCount > 1) {
+                            playing = true;
+                        }
+                    }
                 }
                 MouseArea {
                     propagateComposedEvents: true;
