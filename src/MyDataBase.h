@@ -51,10 +51,20 @@
 #include <QTimer>
 #include <QQueue>
 
+#define USE_SANDBOX
+
+#ifdef USE_SANDBOX
 #define apiBaseUrl       QString ("http://sandbox.feedly.com")
 #define apiClientId      QString ("sandbox221")
 #define apiClientSecret  QString ("AX1EKDZVWUYOSX9RR2VXR8SE")
+#else
+#define apiBaseUrl       QString ("http://cloud.feedly.com")
+#define apiClientId      QString ("boutroue")
+#define apiClientSecret  QString ("FE012EGICU4ZOBDRBEOVAJA1JZYH")
+#endif
+
 #define apiRedirectUri   QString ("http://localhost")
+
 #define apiAuthScope     QString ("https://cloud.feedly.com/subscriptions")
 
 // TODO : put pagination in settings ?
