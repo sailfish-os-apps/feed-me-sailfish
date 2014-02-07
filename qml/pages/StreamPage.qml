@@ -7,6 +7,8 @@ Page {
     id: page;
     allowedOrientations: (Orientation.Portrait | Orientation.Landscape);
 
+    readonly property alias viewItem : view;
+
     RemorsePopup {
         id: remorseMarkAllRead;
     }
@@ -22,8 +24,20 @@ Page {
     SilicaListView {
         id: view;
         clip: true;
-        currentIndex: -1;
         model: Feedly.newsStreamList;
+        highlightRangeMode: ListView.ApplyRange;
+        highlightFollowsCurrentItem: true;
+        preferredHighlightBegin: (height * 1 / 4);
+        preferredHighlightEnd:   (height * 3 / 4);
+        currentIndex: -1;
+        onCurrentIndexChanged: {
+            if (currentIndex >= 0 && currentIndex < Feedly.newsStreamList.count ()) {
+                Feedly.currentEntryId = Feedly.newsStreamList.valueAt (streamPage.viewItem.currentIndex) ['entryId'];
+            }
+            else {
+                Feedly.currentEntryId = "";
+            }
+        }
         header: Column {
             anchors {
                 left:  (parent ? parent.left  : undefined);
@@ -80,12 +94,13 @@ Page {
                 right: parent.right;
             }
             onClicked: {
-                Feedly.currentEntryId = contentInfo.entryId;
+                view.currentIndex = model.index;
                 pageStack.push (contentPage);
             }
             ListView.onAdd: AddAnimation { target: itemNews; }
 
-            property ContentInfo contentInfo : Feedly.getContentInfo (model ['entryId']);
+            property bool        isCurrentIdx : (model.index === view.currentIndex);
+            property ContentInfo contentInfo  : Feedly.getContentInfo (model ['entryId']);
 
             Item {
                 height: itemNews.contentHeight;
@@ -124,7 +139,7 @@ Page {
                     font.pixelSize: Theme.fontSizeSmall;
                     font.family: Theme.fontFamilyHeading;
                     elide: Text.ElideRight;
-                    color: Theme.primaryColor;
+                    color: (itemNews.isCurrentIdx ? Theme.highlightColor : Theme.primaryColor);
                     anchors {
                         left: imgThumbnail.right;
                         right: parent.right;

@@ -11,7 +11,7 @@ Page {
 
     property string bodyCSS : '<style type="text/css">p { margin: 0; margin-bottom: 5px; padding: 0; } a { color: %1; } pre { margin: 10px; padding: 10px; font-family: "Ubuntu Mono, monospace" !important; white-space: pre-wrap; color: %2; text-align: left !important; } </style>'.arg (Theme.highlightColor).arg (Theme.secondaryHighlightColor);
 
-    property ContentInfo currentNewsItem : Feedly.getContentInfo (Feedly.currentEntryId);
+    property ContentInfo currentNewsItem : (Feedly.currentEntryId !== "" ? Feedly.getContentInfo (Feedly.currentEntryId) : null);
     property FeedInfo    currentFeedItem : null;
     onCurrentNewsItemChanged: {
         view.contentY        = 0;
@@ -320,14 +320,9 @@ Page {
         VerticalScrollDecorator { }
     }
     Rectangle {
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba (0, 0, 0, 0); }
-            GradientStop { position: 1.0; color: Qt.rgba (0, 0, 0, 1); }
-        }
-        anchors {
-            fill: layoutButtons;
-            topMargin: (-layoutButtons.height / 2);
-        }
+        color: "white";
+        opacity: 0.15;
+        anchors.fill: layoutButtons;
     }
     Row {
         id: layoutButtons;
@@ -341,19 +336,23 @@ Page {
         property real itemWidth : ((width + spacing) / 2) -spacing;
 
         Button {
-            text: qsTr ("Previous [TODO]");
-            enabled: false;
+            text: qsTr ("Previous");
+            enabled: (streamPage.viewItem.currentIndex < Feedly.newsStreamList.count () -1);
             width: parent.itemWidth;
             onClicked: {
-
+                if (enabled) {
+                    streamPage.viewItem.currentIndex++;
+                }
             }
         }
         Button {
-            text: qsTr ("Next [TODO]");
-            enabled: false;
+            text: qsTr ("Next");
+            enabled: (streamPage.viewItem.currentIndex > 0);
             width: parent.itemWidth;
             onClicked: {
-
+                if (enabled) {
+                    streamPage.viewItem.currentIndex--;
+                }
             }
         }
     }

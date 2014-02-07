@@ -11,6 +11,13 @@ Page {
     property alias  viewItem        : view;
     property string currentCategory : "";
 
+    function loadStream (streamId) {
+        streamPage.viewItem.currentIndex = -1;
+        Feedly.currentStreamId = "";
+        pageStack.push (streamPage);
+        Feedly.currentStreamId = streamId;
+    }
+
     RemorsePopup { id: remorseLogout; }
     RemorseItem { id: remorseUnsubscribe; }
     SilicaFlickable {
@@ -111,10 +118,7 @@ Page {
             }
             ListItem {
                 id: itemAll;
-                onClicked: {
-                    Feedly.currentStreamId = categoryAll.streamId;
-                    pageStack.push (streamPage);
-                }
+                onClicked: { loadStream (categoryAll.streamId); }
 
                 property CategoryInfo categoryAll : Feedly.getCategoryInfo (Feedly.getStreamIdAll ());
 
@@ -143,10 +147,7 @@ Page {
             }
             ListItem {
                 id: itemStarred;
-                onClicked: {
-                    Feedly.currentStreamId = categoryStarred.streamId;
-                    pageStack.push (streamPage);
-                }
+                onClicked: { loadStream (categoryStarred.streamId); }
 
                 property CategoryInfo categoryStarred : Feedly.getCategoryInfo (Feedly.getStreamIdMarked ());
 
@@ -185,11 +186,7 @@ Page {
                         left:  (parent ? parent.left  : undefined);
                         right: (parent ? parent.right : undefined);
                     }
-                    onClicked: {
-                        Feedly.currentStreamId = "";
-                        pageStack.push (streamPage);
-                        Feedly.currentStreamId = (itemSubscription.isCategoryItem ? itemSubscription.category : itemSubscription.feed);
-                    }
+                    onClicked: { loadStream (itemSubscription.isCategoryItem ? itemSubscription.category : itemSubscription.feed); }
                     ListView.onAdd: AddAnimation { target: itemSubscription; }
 
                     property string       feed             : model ['feedId'];
