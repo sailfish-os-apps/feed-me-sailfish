@@ -336,22 +336,22 @@ Page {
         property real itemWidth : ((width + spacing) / 2) -spacing;
 
         Button {
-            text: qsTr ("Previous");
-            enabled: (streamPage.viewItem.currentIndex < Feedly.newsStreamList.count () -1);
-            width: parent.itemWidth;
-            onClicked: {
-                if (enabled) {
-                    streamPage.viewItem.currentIndex++;
-                }
-            }
-        }
-        Button {
-            text: qsTr ("Next");
+            text: qsTr ("Newer");
             enabled: (streamPage.viewItem.currentIndex > 0);
             width: parent.itemWidth;
             onClicked: {
                 if (enabled) {
                     streamPage.viewItem.currentIndex--;
+                }
+            }
+        }
+        Button {
+            text: qsTr ("Older");
+            enabled: (streamPage.viewItem.currentIndex < Feedly.newsStreamList.count () -1);
+            width: parent.itemWidth;
+            onClicked: {
+                if (enabled) {
+                    streamPage.viewItem.currentIndex++;
                 }
             }
         }
