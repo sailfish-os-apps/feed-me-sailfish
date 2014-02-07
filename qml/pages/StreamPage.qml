@@ -139,7 +139,7 @@ Page {
                     font.pixelSize: Theme.fontSizeSmall;
                     font.family: Theme.fontFamilyHeading;
                     elide: Text.ElideRight;
-                    color: (itemNews.isCurrentIdx ? Theme.highlightColor : Theme.primaryColor);
+                    color: (itemNews.highlighted || itemNews.isCurrentIdx ? Theme.highlightColor : Theme.primaryColor);
                     anchors {
                         left: imgThumbnail.right;
                         right: parent.right;
@@ -235,8 +235,13 @@ Page {
                 onClicked: { delayLoadMore.start (); }
             }
         }
+        ViewPlaceholder {
+            text: qsTr ("No news in this stream.");
+            enabled: (view.count == 0);
+        }
         VerticalScrollDecorator { }
     }
+    ScrollDimmer { flickable: view; }
     Timer {
         id: delayLoadMore;
         interval: 500;
@@ -248,10 +253,6 @@ Page {
             Feedly.currentPageCount++;
             view.contentY = save;
         }
-    }
-    ViewPlaceholder {
-        text: qsTr ("No news in this stream.");
-        enabled: (view.count == 0);
     }
     Rectangle {
         visible: btnBackToTop.visible;
@@ -274,6 +275,6 @@ Page {
             bottom: parent.bottom;
             margins: 0;
         }
-        onClicked: { view.scrollToTop (); }
+        onClicked: { view.contentY = 0; }
     }
 }

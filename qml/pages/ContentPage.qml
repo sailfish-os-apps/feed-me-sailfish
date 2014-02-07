@@ -319,6 +319,7 @@ Page {
         }
         VerticalScrollDecorator { }
     }
+    ScrollDimmer { flickable: view; }
     Rectangle {
         color: "white";
         opacity: 0.15;
@@ -411,7 +412,6 @@ Page {
                 }
             }
             VerticalScrollDecorator   { }
-            HorizontalScrollDecorator { }
         }
         Behavior on scale { NumberAnimation { duration: 350; } }
     }

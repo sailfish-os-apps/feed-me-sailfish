@@ -23,5 +23,6 @@
         <file>qml/img/pending.svg</file>
         <file>qml/img/noimage.png</file>
         <file>qml/img/noimage.svg</file>
+        <file>qml/components/ScrollDimmer.qml</file>
     </qresource>
 </RCC>

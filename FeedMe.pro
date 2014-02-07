@@ -25,7 +25,8 @@ OTHER_FILES += \
     qml/cover/* \
     qml/pages/* \
     qml/components/* \
-    qml/img/*
+    qml/img/* \
+    qml/components/ScrollDimmer.qml
 
 RESOURCES   += \
     data.qrc

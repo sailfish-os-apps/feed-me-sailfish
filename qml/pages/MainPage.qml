@@ -127,7 +127,7 @@ Page {
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
                     font.family: Theme.fontFamilyHeading;
-                    color: Theme.secondaryColor;
+                    color: (itemAll.highlighted ? Theme.highlightColor : Theme.secondaryColor);
                     anchors {
                         left: parent.left;
                         right: bubbleAll.left;
@@ -155,7 +155,7 @@ Page {
                     text: itemStarred.categoryStarred.label;
                     textFormat: Text.PlainText;
                     truncationMode: TruncationMode.Fade;
-                    color: Theme.secondaryColor;
+                    color: (itemStarred.highlighted ? Theme.highlightColor : Theme.secondaryColor);
                     font.family: Theme.fontFamilyHeading;
                     anchors {
                         left: parent.left;
@@ -266,7 +266,7 @@ Page {
                             textFormat: Text.PlainText;
                             truncationMode: TruncationMode.Fade;
                             font.family: Theme.fontFamilyHeading;
-                            color: (itemSubscription.isCurrentSection ? Theme.highlightColor : Theme.primaryColor);
+                            color: (itemSubscription.highlighted ? Theme.highlightColor : (itemSubscription.isCurrentSection ? Theme.primaryColor : Theme.secondaryColor));
                             anchors {
                                 left: clicker.right;
                                 right: bubbleCategory.left;
@@ -323,7 +323,7 @@ Page {
                             truncationMode: TruncationMode.Fade;
                             font.pixelSize: Theme.fontSizeSmall;
                             font.family: Theme.fontFamilyHeading;
-                            color: Theme.primaryColor;
+                            color: (itemSubscription.highlighted ? Theme.highlightColor : Theme.primaryColor);
                             anchors {
                                 left: holder.right;
                                 right: bubbleFeed.left;
@@ -353,8 +353,9 @@ Page {
                 }
             }
         }
-        VerticalScrollDecorator {}
+        VerticalScrollDecorator { }
     }
+    ScrollDimmer { flickable: view; }
     Rectangle {
         visible: btnBackToTop.visible;
         gradient: Gradient {
@@ -375,6 +376,6 @@ Page {
             right: view.right;
             bottom: view.bottom;
         }
-        onClicked: { view.scrollToTop (); }
+        onClicked: { view.contentY = 0; }
     }
 }
