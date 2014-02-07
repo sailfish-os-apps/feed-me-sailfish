@@ -302,7 +302,8 @@ private slots: // internal callbacks
 private: // members
     QSqlDatabase                 m_database;
     QSettings                  * m_settings;
-    QTimer                     * m_timer;
+    QTimer                     * m_timerContents;
+    QTimer                     * m_timerUnreadCounts;
     QTcpServer                 * m_tcpServer;
     QNetworkAccessManager      * m_netMan;
     QQueue<QString>              m_pollQueue;

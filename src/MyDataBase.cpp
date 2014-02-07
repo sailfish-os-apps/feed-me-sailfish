@@ -76,9 +76,12 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     ///// NETWORK ACCESS MANAGER /////
     m_netMan = new QNetworkAccessManager (this);
     ///// TIMER /////
-    m_timer = new QTimer (this);
-    m_timer->setInterval (100);
-    m_timer->setSingleShot (true);
+    m_timerContents = new QTimer (this);
+    m_timerContents->setInterval (100);
+    m_timerContents->setSingleShot (true);
+    m_timerUnreadCounts = new QTimer (this);
+    m_timerUnreadCounts->setInterval (500);
+    m_timerUnreadCounts->setSingleShot (true);
     ///// SQL DATABASE /////
     m_database = QSqlDatabase::addDatabase ("QSQLITE");
     QString path (QStandardPaths::writableLocation (QStandardPaths::DataLocation));
@@ -96,12 +99,13 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
                     << m_database.lastError ().text ();
     }
     ///// CALLBACKS /////
-    connect (this,        &MyFeedlyApi::currentStreamIdChanged,  this, &MyFeedlyApi::onCurrentStreamIdChanged);
-    connect (this,        &MyFeedlyApi::showOnlyUnreadChanged,   this, &MyFeedlyApi::onShowOnlyUnreadChanged);
-    connect (this,        &MyFeedlyApi::currentPageCountChanged, this, &MyFeedlyApi::onCurrentPageCountChanged);
-    connect (this,        &MyFeedlyApi::isOfflineChanged,        this, &MyFeedlyApi::onIsOfflineChanged);
-    connect (m_tcpServer, &QTcpServer::newConnection,            this, &MyFeedlyApi::onIncomingConnection);
-    connect (m_timer,     &QTimer::timeout,                      this, &MyFeedlyApi::requestContents);
+    connect (this,                &MyFeedlyApi::currentStreamIdChanged,  this, &MyFeedlyApi::onCurrentStreamIdChanged);
+    connect (this,                &MyFeedlyApi::showOnlyUnreadChanged,   this, &MyFeedlyApi::onShowOnlyUnreadChanged);
+    connect (this,                &MyFeedlyApi::currentPageCountChanged, this, &MyFeedlyApi::onCurrentPageCountChanged);
+    connect (this,                &MyFeedlyApi::isOfflineChanged,        this, &MyFeedlyApi::onIsOfflineChanged);
+    connect (m_tcpServer,         &QTcpServer::newConnection,            this, &MyFeedlyApi::onIncomingConnection);
+    connect (m_timerContents,     &QTimer::timeout,                      this, &MyFeedlyApi::requestContents);
+    connect (m_timerUnreadCounts, &QTimer::timeout,                      this, &MyFeedlyApi::loadUnreadCounts);
     ///// LOADING /////
     MyCategory * categoryAll = getCategoryInfo (streamIdAll);
     categoryAll->set_label (tr ("All items"));
@@ -224,7 +228,7 @@ QString MyFeedlyApi::getStreamIdMarked () {
 void MyFeedlyApi::refreshAll () {
     qDebug () << "refreshAll";
     if (!get_isOffline ()) {
-        m_timer->stop ();
+        m_timerContents->stop ();
         m_pollQueue.clear ();
         foreach (QString feedId, m_feeds.keys ()) {
             MyFeed * feed = getFeedInfo (feedId);
@@ -398,6 +402,7 @@ void MyFeedlyApi::markItemAsRead (QString entryId) {
                 queryUpdate.bindValue (":entryId", entryId);
                 queryUpdate.exec ();
                 entry->set_unread (false);
+                m_timerUnreadCounts->start ();
             }
         }
     }
@@ -411,7 +416,7 @@ void MyFeedlyApi::markCurrentStreamAsRead () {
         markItemAsRead (item.value ("entryId").toString ());
     }
     m_database.commit ();
-    loadUnreadCounts ();
+    qApp->processEvents ();
 }
 
 void MyFeedlyApi::logoutAndSweepAll () {
@@ -494,7 +499,7 @@ void MyFeedlyApi::onCurrentPageCountChanged (int arg) {
 void MyFeedlyApi::onIsOfflineChanged (bool arg) {
     qDebug () << "onIsOfflineChanged :" << arg;
     if (arg) {
-        m_timer->stop ();
+        m_timerContents->stop ();
         m_pollQueue.clear ();
         set_isPolling (false);
     }
@@ -677,7 +682,7 @@ void MyFeedlyApi::onRequestSubscriptionsReply () {
             m_database.commit ();
             //qDebug () << "feeds=" << feeds;
             loadSubscriptions ();
-            loadUnreadCounts  ();
+            m_timerUnreadCounts->start ();
         }
         else {
             qWarning () << "Failed to parse feeds from JSON response :"
@@ -696,7 +701,7 @@ void MyFeedlyApi::onRequestContentsReply () {
     QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
     Q_ASSERT (reply);
     if (!m_pollQueue.isEmpty ()) {
-        m_timer->start (10); // do next quickly
+        m_timerContents->start (10); // do next quickly
     }
     else {
         set_currentStatusMsg (tr ("Idle."));
@@ -743,7 +748,7 @@ void MyFeedlyApi::onRequestContentsReply () {
                         << data;
         }
         getFeedInfo (reply->property("feedId").toString ())->set_status (MyFeed::Idle);
-        loadUnreadCounts ();
+        m_timerUnreadCounts->start ();
     }
     else {
         qWarning () << "Network error on contents request :"
@@ -787,7 +792,7 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
             if (!m_pollQueue.isEmpty ()) {
                 set_isPolling (true);
                 set_currentStatusMsg (tr ("Refreshing feeds..."));
-                m_timer->start (1200);
+                m_timerContents->start (1200);
             }
             else {
                 set_currentStatusMsg (tr ("Idle."));
@@ -804,7 +809,7 @@ void MyFeedlyApi::onRequestReadOperationsReply () {
         qWarning () << "Network error on read operations request :"
                     << reply->errorString ();
     }
-    loadUnreadCounts ();
+    m_timerUnreadCounts->start ();
 }
 
 void MyFeedlyApi::onPushLocalOperationsReply () {
@@ -1108,7 +1113,7 @@ int VariantModel::rowCount (const QModelIndex & parent) const {
     return count ();
 }
 
-QVariant VariantModel::data (const QModelIndex & index, int role) const {   
+QVariant VariantModel::data (const QModelIndex & index, int role) const {
     return valueAt (index.row ()).value (QString::fromLocal8Bit (m_roles.value (role)));
 }
 
