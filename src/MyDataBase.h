@@ -50,6 +50,9 @@
 #include <QUrlQuery>
 #include <QTimer>
 #include <QQueue>
+#include <QRegularExpression>
+#include <QRegularExpressionMatch>
+#include <QDebug>
 
 #define USE_SANDBOX
 
@@ -72,6 +75,7 @@
 
 #define CRLF                  QString ("\r\n")
 #define CURR_MSECS            QDateTime::currentMSecsSinceEpoch ()
+#define REGEXP_NUMBER         QRegularExpression ("^\\d$")
 
 #define streamIdAll           QString ("user/-/category/global.all")
 #define streamIdMarked        QString ("user/-/tag/global.saved")

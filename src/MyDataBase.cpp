@@ -1,19 +1,16 @@
 
 #include "MyDataBase.h"
 
-#include <QDebug>
-
 QVariant jsonPathAsVariant (QJsonValue json, QString path, QVariant fallback = QVariant ()) {
-    QVariant ret = fallback;
+    QVariant ret;
     QJsonValue tmp = json;
     QStringList list = path.split ('/');
     bool error = false;
     foreach (QString key, list) {
-        bool isNumber;
-        int nb = key.toInt (&isNumber, 10);
-        if (isNumber) {
+        if (REGEXP_NUMBER.match (key).hasMatch ()) {
+            int nb = key.toInt ();
             QJsonArray array = tmp.toArray ();
-            if (array.count () > nb) {
+            if (nb >= 0 && nb < array.count ()) {
                 tmp = array.at (nb);
             }
             else {
@@ -34,6 +31,9 @@ QVariant jsonPathAsVariant (QJsonValue json, QString path, QVariant fallback = Q
     }
     if (!tmp.isNull () && !error) {
         ret.setValue (tmp.toVariant ());
+    }
+    else {
+        ret.setValue (fallback);
     }
     return ret;
 }
