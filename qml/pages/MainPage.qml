@@ -24,7 +24,7 @@ Page {
         id: view;
         clip: true;
         contentWidth: width;
-        contentHeight: layoutSubscriptions.height;
+        contentHeight: (layoutSubscriptions.height <= height ? layoutSubscriptions.height : layoutSubscriptions.height + btnBackToTop.height);
         anchors {
             top: parent.top;
             left: parent.left;
@@ -342,14 +342,6 @@ Page {
                             }
                         }
                     }
-                }
-            }
-            Item {
-                id: footer;
-                height: btnBackToTop.height;
-                anchors {
-                    left:  (parent ? parent.left  : undefined);
-                    right: (parent ? parent.right : undefined);
                 }
             }
         }
