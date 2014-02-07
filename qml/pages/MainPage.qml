@@ -376,6 +376,6 @@ Page {
             right: view.right;
             bottom: view.bottom;
         }
-        onClicked: { view.contentY = 0; }
+        onClicked: { view.positionViewAtBeginning (); }
     }
 }

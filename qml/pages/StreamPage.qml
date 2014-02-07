@@ -14,12 +14,8 @@ Page {
     }
     Connections {
         target: Feedly;
-        onCurrentStreamIdChanged: {
-            view.positionViewAtBeginning ();
-        }
-        onShowOnlyUnreadChanged: {
-            view.positionViewAtBeginning ();
-        }
+        onCurrentStreamIdChanged: { view.positionViewAtBeginning (); }
+        onShowOnlyUnreadChanged:  { view.positionViewAtBeginning (); }
     }
     SilicaListView {
         id: view;
@@ -275,6 +271,6 @@ Page {
             bottom: parent.bottom;
             margins: 0;
         }
-        onClicked: { view.contentY = 0; }
+        onClicked: { view.positionViewAtBeginning (); }
     }
 }
