@@ -59,18 +59,6 @@ ApplicationWindow {
             }
         }
     }
-    Loader {
-        active: !Feedly.isLogged;
-        asynchronous: true;
-        sourceComponent: SilicaWebView {
-            id: webView;
-            url: Feedly.getOAuthPageUrl ();
-            experimental {
-                transparentBackground: true;
-            }
-        }
-        anchors.fill: parent;
-    }
     Formatter {
         id: formatter;
     }

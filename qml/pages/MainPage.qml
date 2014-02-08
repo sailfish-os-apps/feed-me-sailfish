@@ -370,4 +370,33 @@ Page {
         }
         onClicked: { view.contentY = 0; }
     }
+    Loader {
+        active: !Feedly.isLogged;
+        asynchronous: true;
+        sourceComponent: SilicaWebView {
+            id: webView;
+            url: Feedly.getOAuthPageUrl ();
+            experimental {
+                transparentBackground: false;
+                preferences {
+                    javascriptEnabled: true;
+                    cookiesEnabled: false;
+                    pluginsEnabled: false;
+                    offlineWebApplicationCacheEnabled: false;
+                    localStorageEnabled: false;
+                    xssAuditingEnabled: false;
+                    privateBrowsingEnabled: false;
+                    dnsPrefetchEnabled: false;
+                    navigatorQtObjectEnabled: false;
+                    developerExtrasEnabled: false;
+                    webGLEnabled: false;
+                    webAudioEnabled: false;
+                    caretBrowsingEnabled: false;
+                    notificationsEnabled: false;
+                }
+            }
+            onUrlChanged: { console.log ("url=", url); }
+        }
+        anchors.fill: parent;
+    }
 }

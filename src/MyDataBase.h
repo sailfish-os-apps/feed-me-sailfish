@@ -54,7 +54,7 @@
 #include <QRegularExpressionMatch>
 #include <QDebug>
 
-#define USE_SANDBOX
+#undef USE_SANDBOX
 
 #ifdef USE_SANDBOX
 #define apiBaseUrl       QString ("http://sandbox.feedly.com")

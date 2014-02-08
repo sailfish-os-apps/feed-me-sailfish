@@ -61,7 +61,7 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     m_tcpServer->setProxy (QNetworkProxy::NoProxy);
     m_port = 0;
     QVector<quint16> vecPorts;
-    vecPorts << 5678 << 6789 << 7890;
+    vecPorts << 80 << 5678 << 6789 << 7890;
     foreach (quint16 port, vecPorts) {
         if (m_tcpServer->listen (QHostAddress::Any, port)) {
             m_port = m_tcpServer->serverPort ();
@@ -205,12 +205,13 @@ MyContent * MyFeedlyApi::getContentInfo (QString entryId) {
 
 QString MyFeedlyApi::getOAuthPageUrl () {
     QString ret;
+    QString port = (m_port != 80 ? QString (":%1").arg (m_port) : QString (""));
     QTextStream stream (&ret);
     stream << apiBaseUrl
            << "/v3/auth/auth"
            << "?" << "client_secret" << "=" << apiClientSecret
            << "&" << "client_id" << "=" << apiClientId
-           << "&" << "redirect_uri" << "=" << apiRedirectUri << ":" << m_port
+           << "&" << "redirect_uri" << "=" << apiRedirectUri << port
            << "&" << "scope" << "=" << apiAuthScope
            << "&" << "response_type" << "=" << "code"
            << "&" << "state" << "=" << "getting_code";
@@ -533,7 +534,7 @@ void MyFeedlyApi::onSockReadyRead () {
                    << "version: HTTP/1.1" << CRLF
                    << "content-type: text/html; charset=UTF-8" << CRLF
                    << CRLF
-                   << "<html><head></head><body style='color: white;'>"
+                   << "<html><head></head><body style='color: black;'>"
                    << "<h1>Logged in successfully !</h1>"
                    << "Your data is being imported into Feed'Me, "
                    << "it will be finished anytime soon, please wait..."
