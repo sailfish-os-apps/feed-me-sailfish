@@ -61,7 +61,7 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     m_tcpServer->setProxy (QNetworkProxy::NoProxy);
     m_port = 0;
     QVector<quint16> vecPorts;
-    vecPorts << 80 << 5678 << 6789 << 7890;
+    vecPorts << 80 << 8080 << 5678 << 6789 << 7890;
     foreach (quint16 port, vecPorts) {
         if (m_tcpServer->listen (QHostAddress::Any, port)) {
             m_port = m_tcpServer->serverPort ();
