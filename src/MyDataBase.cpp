@@ -82,6 +82,9 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     m_timerUnreadCounts = new QTimer (this);
     m_timerUnreadCounts->setInterval (500);
     m_timerUnreadCounts->setSingleShot (true);
+    m_timerAutoSync = new QTimer (this);
+    m_timerAutoSync->setInterval (2000);
+    m_timerAutoSync->setSingleShot (true);
     ///// SQL DATABASE /////
     m_database = QSqlDatabase::addDatabase ("QSQLITE");
     QString path (QStandardPaths::writableLocation (QStandardPaths::DataLocation));
@@ -106,6 +109,7 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
     connect (m_tcpServer,         &QTcpServer::newConnection,            this, &MyFeedlyApi::onIncomingConnection);
     connect (m_timerContents,     &QTimer::timeout,                      this, &MyFeedlyApi::requestContents);
     connect (m_timerUnreadCounts, &QTimer::timeout,                      this, &MyFeedlyApi::loadUnreadCounts);
+    connect (m_timerAutoSync,     &QTimer::timeout,                      this, &MyFeedlyApi::syncAllFlags);
     ///// LOADING /////
     MyCategory * categoryAll = getCategoryInfo (streamIdAll);
     categoryAll->set_label (tr ("All items"));
@@ -352,8 +356,10 @@ void MyFeedlyApi::requestReadOperations () {
 }
 
 void MyFeedlyApi::syncAllFlags () {
-    set_isPolling (true);
-    pushLocalReadOperations ();
+    if (!get_isOffline ()) {
+        set_isPolling (true);
+        pushLocalReadOperations ();
+    }
 }
 
 void MyFeedlyApi::pushLocalReadOperations () {
@@ -404,6 +410,7 @@ void MyFeedlyApi::markItemAsRead (QString entryId) {
                 queryUpdate.exec ();
                 entry->set_unread (false);
                 m_timerUnreadCounts->start ();
+                m_timerAutoSync->start ();
             }
         }
     }
