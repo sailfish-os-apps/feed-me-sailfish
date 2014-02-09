@@ -29,7 +29,7 @@ Page {
             }
             htmlView.text = formatBody (currentNewsItem.content)
             repeaterImages.model = extractImages (currentNewsItem.content);
-            imgStreamIcon.source = googleFaviconWebServiceUrl.arg (currentFeedItem.website);
+            imgStreamIcon.source = (!Feedly.isOffline ? googleFaviconWebServiceUrl.arg (currentFeedItem.website) : "");
             labelSource.text =  "<b>" + currentFeedItem.title + "</b>" + (currentNewsItem.author !== "" ? "  (%1)".arg (currentNewsItem.author) : "");
             labelTimestamp.text = Qt.formatDateTime (new Date (currentNewsItem.published), Qt.DefaultLocaleLongDate);
         }
@@ -246,7 +246,7 @@ Page {
                             onClicked: { dialogImg.uri = modelData ['url']; }
                         }
                         Rectangle {
-                            color: "white";
+                            color: "black";
                             radius: border.width;
                             antialiasing: true;
                             border.width: 2;
@@ -265,21 +265,30 @@ Page {
 
                             Image {
                                 id: img;
-                                source: modelData ['url'];
+                                source: (!Feedly.isOffline ? modelData ['url'] : "");
                                 cache: true;
                                 asynchronous: true;
                                 fillMode: Image.Pad;
                                 scale: Math.min (Math.min (parent.width/width, parent.height/width), 1.0);
                                 anchors.centerIn: parent;
                             }
-                            Text {
-                                text: qsTr ("Loading...");
-                                color: "gray";
-                                visible: (img.status !== Image.Ready);
-                                font {
-                                    family: Theme.fontFamilyHeading;
-                                    pixelSize: Theme.fontSizeTiny;
+                            Label {
+                                text: qsTr ("Image not available offline");
+                                fontSizeMode: Text.HorizontalFit;
+                                font.pixelSize: Theme.fontSizeSmall;
+                                verticalAlignment: Text.AlignVCenter;
+                                horizontalAlignment: Text.AlignHCenter;
+                                color: Theme.highlightColor;
+                                visible: Feedly.isOffline;
+                                anchors {
+                                    fill: parent;
+                                    margins: Theme.paddingSmall;
                                 }
+                            }
+                            BusyIndicator {
+                                running: (img.status === Image.Loading);
+                                visible: running;
+                                size: BusyIndicatorSize.Medium;
                                 anchors.centerIn: parent;
                             }
                         }
@@ -360,6 +369,7 @@ Page {
     Item {
         id: dialogImg;
         scale: (uri !== "" ? 1.0 : 0.0);
+        opacity: scale;
         visible: (scale > 0);
         enabled: visible;
         anchors.fill: parent;
@@ -391,7 +401,7 @@ Page {
                     id: imgView;
                     asynchronous: true;
                     cache: true;
-                    source: dialogImg.uri;
+                    source: (!Feedly.isOffline ? dialogImg.uri : "");
                     fillMode: Image.Pad;
                     anchors.centerIn: parent;
                     onStatusChanged: {
@@ -411,7 +421,27 @@ Page {
                     onClicked: { dialogImg.uri = ""; }
                 }
             }
+            HorizontalScrollDecorator { }
             VerticalScrollDecorator   { }
+        }
+        Label {
+            text: qsTr ("Image not available offline");
+            fontSizeMode: Text.HorizontalFit;
+            font.pixelSize: Theme.fontSizeLarge;
+            verticalAlignment: Text.AlignVCenter;
+            horizontalAlignment: Text.AlignHCenter;
+            color: Theme.highlightColor;
+            visible: Feedly.isOffline;
+            anchors {
+                fill: parent;
+                margins: Theme.paddingLarge;
+            }
+        }
+        BusyIndicator {
+            running: (imgView.status === AnimatedImage.Loading);
+            visible: running;
+            size: BusyIndicatorSize.Large;
+            anchors.centerIn: parent;
         }
         Behavior on scale { NumberAnimation { duration: 350; } }
     }

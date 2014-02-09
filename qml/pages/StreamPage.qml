@@ -116,7 +116,7 @@ Page {
                 }
                 Image {
                     id: imgThumbnail;
-                    source: (itemNews.contentInfo.thumbnail !== "" ? itemNews.contentInfo.thumbnail : "../img/noimage.png");
+                    source: (!Feedly.isOffline  && itemNews.contentInfo.thumbnail !== "" ? itemNews.contentInfo.thumbnail : "../img/noimage.png");
                     fillMode: Image.PreserveAspectCrop;
                     asynchronous: true;
                     cache: true;
@@ -125,6 +125,13 @@ Page {
                         top: parent.top;
                         left: parent.left;
                         bottom: parent.bottom;
+                    }
+
+                    BusyIndicator {
+                        running: (parent.status === Image.Loading);
+                        visible: running;
+                        size: BusyIndicatorSize.Medium;
+                        anchors.centerIn: parent;
                     }
                 }
                 Text {
@@ -135,7 +142,7 @@ Page {
                     font.pixelSize: Theme.fontSizeSmall;
                     font.family: Theme.fontFamilyHeading;
                     elide: Text.ElideRight;
-                    color: (itemNews.highlighted || itemNews.isCurrentIdx ? Theme.highlightColor : Theme.primaryColor);
+                    color: (itemNews.highlighted || itemNews.isCurrentIdx ? Theme.highlightColor : (itemNews.contentInfo.unread ? Theme.primaryColor : Theme.secondaryColor));
                     anchors {
                         left: imgThumbnail.right;
                         right: parent.right;
