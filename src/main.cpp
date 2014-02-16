@@ -15,8 +15,7 @@ int main (int argc, char * argv []){
     qmlRegisterType            <MyFeed>                ("harbour.feedme.myQtCoreImports", 5, 1, "FeedInfo");
     qmlRegisterType            <MyContent>             ("harbour.feedme.myQtCoreImports", 5, 1, "ContentInfo");
     QGuiApplication * app = SailfishApp::application (argc, argv);
-    app->setApplicationName ("FeedMe");
-    app->setOrganizationName ("TheBootroo");
+    app->setApplicationName ("harbour-feedme");
     if (!qgetenv ("HTTP_PROXY").isEmpty ()) {
         QString proxyStr = QString::fromLocal8Bit (qgetenv ("HTTP_PROXY")).toLower ().remove ("http://");
         QNetworkProxy::setApplicationProxy (QNetworkProxy (QNetworkProxy::HttpProxy, proxyStr.split (':').first (), proxyStr.split (':').last ().toInt ()));

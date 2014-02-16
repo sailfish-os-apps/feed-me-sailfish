@@ -124,7 +124,7 @@ MyFeedlyApi::MyFeedlyApi (QObject * parent) : QObject (parent) {
         loadSubscriptions ();
         loadUnreadCounts  ();
         if (!get_isOffline ()) {
-            requestCategories ();
+            refreshTokens ();
         }
     }
 }
@@ -285,9 +285,25 @@ void MyFeedlyApi::requestTokens () {
            << "&" << "redirect_uri" << "=" << apiRedirectUri
            << "&" << "grant_type" << "=" << "authorization_code"
            << "&" << "state" << "=" << "getting_token";
-    qDebug () << "request=\n" << data;
+    qDebug () << "request data=\n" << data;
     QNetworkReply * reply = m_netMan->post (request, data.toLocal8Bit ());
     connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRequestTokenReply);
+}
+
+void MyFeedlyApi::refreshTokens () {
+    set_currentStatusMsg (tr ("Refreshing authentication..."));
+    set_isPolling (true);
+    QNetworkRequest request (QUrl (QString ("%1/v3/auth/token").arg (apiBaseUrl)));
+    request.setHeader (QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+    QString data;
+    QTextStream stream (&data);
+    stream << "refresh_token" << "=" << get_apiRefreshToken ()
+           << "&" << "client_id" << "=" << apiClientId
+           << "&" << "client_secret" << "=" << apiClientSecret
+           << "&" << "grant_type" << "=" << "refresh_token";
+    qDebug () << "refresh data=\n" << data;
+    QNetworkReply * reply = m_netMan->post (request, data.toLocal8Bit ());
+    connect (reply, &QNetworkReply::finished, this, &MyFeedlyApi::onRefreshTokenReply);
 }
 
 void MyFeedlyApi::requestCategories () {
@@ -580,6 +596,35 @@ void MyFeedlyApi::onRequestTokenReply () {
     }
     else {
         qWarning () << "Network error on token request :"
+                    << reply->errorString ();
+    }
+}
+
+void MyFeedlyApi::onRefreshTokenReply () {
+    qDebug () << "onRefreshTokenReply";
+    set_currentStatusMsg (tr ("Idle."));
+    set_isPolling (false);
+    QNetworkReply * reply = qobject_cast<QNetworkReply *>(sender ());
+    Q_ASSERT (reply);
+    if (reply->error () == QNetworkReply::NoError) {
+        QByteArray data = reply->readAll ();
+        QJsonParseError error;
+        QJsonDocument json = QJsonDocument::fromJson (data, &error);
+        if (!json.isNull () && json.isObject ()) {
+            QJsonObject obj = json.object ();
+            set_apiAccessToken  (obj.value ("access_token").toString ());
+            qDebug () << "accessToken=" << get_apiAccessToken ();
+            set_isLogged (true);
+            requestCategories ();
+        }
+        else {
+            qWarning () << "Failed to parse tokens from JSON response :"
+                        << error.errorString ()
+                        << data;
+        }
+    }
+    else {
+        qWarning () << "Network error on token refresh :"
                     << reply->errorString ();
     }
 }

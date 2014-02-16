@@ -282,6 +282,7 @@ protected slots: // internal routines
     void initializeTables        ();
     void refreshStreamModel      ();
     void requestTokens           ();
+    void refreshTokens           ();
     void requestCategories       ();
     void requestSubscriptions    ();
     void requestContents         ();
@@ -297,6 +298,7 @@ private slots: // internal callbacks
     void onIncomingConnection         ();
     void onSockReadyRead              ();
     void onRequestTokenReply          ();
+    void onRefreshTokenReply          ();
     void onRequestCategoriesReply     ();
     void onRequestSubscriptionsReply  ();
     void onRequestContentsReply       ();
